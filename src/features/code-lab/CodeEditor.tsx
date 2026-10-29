@@ -10,10 +10,16 @@ import {
 } from '@codemirror/view';
 import type { DecorationSet } from '@codemirror/view';
 import { javascript } from '@codemirror/lang-javascript';
-import {
-  syntaxHighlighting,
-  defaultHighlightStyle,
-} from '@codemirror/language';
+import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
+const codeColors = HighlightStyle.define([
+  { tag: tags.keyword, color: '#e9b565' },
+  { tag: [tags.variableName, tags.propertyName], color: '#e8e2d8' },
+  { tag: tags.function(tags.variableName), color: '#95bfdc' },
+  { tag: [tags.number, tags.bool], color: '#b8cda3' },
+  { tag: tags.comment, color: '#a59b8d', fontStyle: 'italic' },
+  { tag: [tags.operator, tags.punctuation], color: '#c5beb2' },
+]);
 import {
   defaultKeymap,
   history,
@@ -68,7 +74,7 @@ export default function CodeEditor({
         doc: source,
         extensions: [
           javascript(),
-          syntaxHighlighting(defaultHighlightStyle),
+          syntaxHighlighting(codeColors),
           lineNumbers(),
           highlightActiveLineGutter(),
           drawSelection(),

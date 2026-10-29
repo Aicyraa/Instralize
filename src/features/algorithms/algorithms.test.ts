@@ -5,21 +5,41 @@ import { traceRecursion } from './recursion';
 import { traceSearch } from './searching';
 
 describe('sorting traces', () => {
-  for (const algorithm of algorithms.filter(a => a.category === 'Sorting')) {
+  for (const algorithm of algorithms.filter((a) => a.category === 'Sorting')) {
     it(`${algorithm.id} sorts without mutating input and emits valid frames`, () => {
-      for (const values of [[], [1], [3, 1, 3, -2, 0], [1, 2, 3], [5, 4, 3, 2, 1], [-999, 999, 0]]) {
+      for (const values of [
+        [],
+        [1],
+        [3, 1, 3, -2, 0],
+        [1, 2, 3],
+        [5, 4, 3, 2, 1],
+        [-999, 999, 0],
+      ]) {
         const original = [...values];
         const frames = algorithm.run(values);
-        expect(frames.at(-1)!.items.map(i => i.value)).toEqual([...values].sort((a, b) => a - b));
+        expect(frames.at(-1)!.items.map((i) => i.value)).toEqual(
+          [...values].sort((a, b) => a - b),
+        );
         expect(values).toEqual(original);
-        expect(frames[0].items.map(i => i.value)).toEqual(original);
-        for (const frame of frames) expect(frame.active.every(i => i >= 0 && i < values.length)).toBe(true);
+        expect(frames[0].items.map((i) => i.value)).toEqual(original);
+        for (const frame of frames)
+          expect(frame.active.every((i) => i >= 0 && i < values.length)).toBe(
+            true,
+          );
       }
     });
   }
 });
 it('validates entire input rather than silently dropping tokens', () => {
-  for (const text of ['', '1,,2', '1x,2', '1.2', '1000', Array(66).fill('1').join(',')]) expect(() => parseArray(text)).toThrow();
+  for (const text of [
+    '',
+    '1,,2',
+    '1x,2',
+    '1.2',
+    '1000',
+    Array(66).fill('1').join(','),
+  ])
+    expect(() => parseArray(text)).toThrow();
   expect(parseArray(' -2, 0, 2 ')).toEqual([-2, 0, 2]);
 });
 it('finds first duplicates and missing values', () => {
@@ -39,6 +59,8 @@ it('shows only reached calls and returns correct recursive results', () => {
 it('Hanoi makes only legal moves', () => {
   const frames = traceRecursion('hanoi', 4);
   expect(frames.at(-1)!.pegs).toEqual([[], [], [4, 3, 2, 1]]);
-  expect(frames.filter(f => f.operation === 'move')).toHaveLength(15);
-  for (const frame of frames) for (const peg of frame.pegs ?? []) expect(peg.every((disk, i) => i === 0 || peg[i - 1] > disk)).toBe(true);
+  expect(frames.filter((f) => f.operation === 'move')).toHaveLength(15);
+  for (const frame of frames)
+    for (const peg of frame.pegs ?? [])
+      expect(peg.every((disk, i) => i === 0 || peg[i - 1] > disk)).toBe(true);
 });

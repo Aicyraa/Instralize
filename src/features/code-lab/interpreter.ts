@@ -173,7 +173,7 @@ export function runCode(
   options: RunOptions = {},
 ): RunResult {
   const limits = { ...LIMITS, ...options.limits };
-  if (source.length > limits.source)
+  if (new TextEncoder().encode(source).length > limits.source)
     throw new CodeError('Source exceeds 20KB.', 'limit');
   if (input.length > 64 || input.some((n) => !Number.isFinite(n)))
     throw new CodeError('Input must contain at most 64 finite numbers.');

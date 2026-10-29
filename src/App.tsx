@@ -30,7 +30,7 @@ export default function App() {
             Code Lab
           </button>
         </nav>
-        <span className="header-note">Make the invisible visible.</span>
+        <span className="header-note">Interactive algorithm visualizer</span>
       </header>
       {tab === 'explore' ? (
         <Explore />

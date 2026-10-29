@@ -22,6 +22,7 @@
     "@codemirror/view": "^6.43.15",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@lezer/highlight": "^1.2.5",
     "@tailwindcss/vite": "^4.3.3",
     "acorn": "^8.19.0",
     "motion": "^14.7.1",

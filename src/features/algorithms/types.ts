@@ -1,6 +1,19 @@
 export type Category = 'Sorting' | 'Searching' | 'Recursion';
-export type Operation = 'ready' | 'compare' | 'swap' | 'write' | 'range' | 'call' | 'return' | 'move' | 'execute' | 'done';
-export interface Item { id: string; value: number }
+export type Operation =
+  | 'ready'
+  | 'compare'
+  | 'swap'
+  | 'write'
+  | 'range'
+  | 'call'
+  | 'return'
+  | 'move'
+  | 'execute'
+  | 'done';
+export interface Item {
+  id: string;
+  value: number;
+}
 export interface CallNode {
   id: string;
   parentId?: string;
@@ -41,5 +54,14 @@ export interface Algorithm {
   run: (values: number[], target?: number) => Frame[];
 }
 export function initialFrame(values: number[] = []): Frame {
-  return { operation: 'ready', description: 'Ready. Press Play or step through the algorithm.', items: values.map((value, i) => ({ id: `item-${i}`, value })), active: [], finalized: [], comparisons: 0, writes: 0, nodes: [] };
+  return {
+    operation: 'ready',
+    description: 'Ready. Press Play or step through the algorithm.',
+    items: values.map((value, i) => ({ id: `item-${i}`, value })),
+    active: [],
+    finalized: [],
+    comparisons: 0,
+    writes: 0,
+    nodes: [],
+  };
 }
