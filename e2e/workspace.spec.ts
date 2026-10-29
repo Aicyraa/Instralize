@@ -80,3 +80,71 @@ test('Code Lab cancels infinite loops and discards stale highlights', async ({
     page.getByRole('heading', { name: 'Bubble sort', level: 1 }),
   ).toBeVisible();
 });
+
+test('recursion, alternate array styles and accessible drawers', async ({
+  page,
+  isMobile,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await page.screenshot({
+    path: isMobile
+      ? '/tmp/instralize-mobile.png'
+      : '/tmp/instralize-desktop.png',
+    fullPage: true,
+  });
+  if (isMobile)
+    await page.getByRole('button', { name: 'Algorithms & input' }).click();
+  await page
+    .getByRole('button', { name: 'Tower of Hanoi', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Next step', exact: true }).click();
+  await expect(page.getByRole('button', { name: /hanoi\(3/ })).toBeVisible();
+  if (isMobile)
+    await page.getByRole('button', { name: 'Algorithms & input' }).click();
+  await page.getByRole('button', { name: 'Merge sort', exact: true }).click();
+  if (!isMobile)
+    await page
+      .getByRole('combobox', { name: 'Visualization style' })
+      .selectOption('circles');
+  if (!isMobile) await page.setViewportSize({ width: 1100, height: 800 });
+  await page.getByRole('button', { name: 'Inspector', exact: true }).click();
+  await expect(
+    page.getByRole('dialog', { name: 'Execution inspector' }),
+  ).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+});
+
+test('Stop terminates a pending worker and draft edits cancel old runs', async ({
+  page,
+}) => {
+  // Hold execution open to exercise lifecycle controls without racing a fast interpreter.
+  await page.route('**/assets/runner.worker-*.js', (route) =>
+    route.fulfill({
+      contentType: 'text/javascript',
+      body: 'self.onmessage = () => { setTimeout(() => {}, 10000); };',
+    }),
+  );
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Code Lab', exact: true }).click();
+  await page.getByRole('button', { name: 'Run & play' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Stop', exact: true }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Stopped');
+  await expect(page.getByRole('button', { name: 'Run & play' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Run & play' }).click();
+  await page
+    .getByRole('textbox', { name: 'Algorithm code editor' })
+    .fill('function sort(arr) { return arr; }');
+  await expect(
+    page.getByRole('button', { name: 'Stop', exact: true }),
+  ).toBeDisabled();
+  await expect(page.locator('.code-execution-line')).toHaveCount(0);
+  await page.screenshot({
+    path: '/tmp/instralize-code-lab.png',
+    fullPage: true,
+  });
+});
