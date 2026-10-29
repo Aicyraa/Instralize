@@ -11,7 +11,7 @@ it('switches algorithms, rejects malformed inputs and seeks through valid traces
   render(<Explore />);
   await user.click(screen.getByRole('button', { name: 'Binary search' }));
   expect(screen.getByRole('heading', { name: 'Binary search', level: 1 })).toBeTruthy();
-  const input = screen.getByLabelText('Array values');
+  const input = screen.getByRole('textbox', { name: 'Array values' });
   await user.clear(input); await user.type(input, '3, 1');
   await user.click(screen.getByRole('button', { name: 'Apply input' }));
   expect(screen.getByRole('alert').textContent).toContain('ascending');
