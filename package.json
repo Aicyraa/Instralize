@@ -20,11 +20,9 @@
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "acorn": "^8.19.0",
-    "animejs": "^4.3.6",
     "motion": "^14.7.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-draggable": "^4.5.0",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
