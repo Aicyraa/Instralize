@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { Algorithm, Frame } from '../algorithms/types';
 export function Inspector({
   frame,
@@ -15,14 +15,16 @@ export function Inspector({
 }) {
   const tabs = ['Explanation', 'Steps', 'Details'];
   const [tab, setTab] = useState('Explanation');
+  // Unique ids keep tab relationships valid when several maps are open.
+  const uid = useId();
   return (
     <div className="inspector-content">
       <div className="small-tabs" role="tablist" aria-label="Inspector">
         {tabs.map((name) => (
           <button
             role="tab"
-            id={`inspector-${name}`}
-            aria-controls="inspector-panel"
+            id={`${uid}-tab-${name}`}
+            aria-controls={`${uid}-panel`}
             aria-selected={tab === name}
             tabIndex={tab === name ? 0 : -1}
             onKeyDown={(event) => {
@@ -40,7 +42,7 @@ export function Inspector({
               if (next < 0) return;
               event.preventDefault();
               setTab(tabs[next]);
-              document.getElementById(`inspector-${tabs[next]}`)?.focus();
+              document.getElementById(`${uid}-tab-${tabs[next]}`)?.focus();
             }}
             key={name}
             onClick={() => setTab(name)}
@@ -51,8 +53,8 @@ export function Inspector({
       </div>
       <div
         role="tabpanel"
-        id="inspector-panel"
-        aria-labelledby={`inspector-${tab}`}
+        id={`${uid}-panel`}
+        aria-labelledby={`${uid}-tab-${tab}`}
       >
         {tab === 'Explanation' ? (
           <>

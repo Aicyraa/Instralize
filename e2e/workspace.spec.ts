@@ -113,7 +113,7 @@ test('recursion, alternate array styles and node map navigation', async ({
   await page
     .getByRole('combobox', { name: 'Visualization style' })
     .selectOption('circles');
-  await focusNode(page, 'Execution inspector');
+  await focusNode(page, 'Execution map');
   await expect(page.getByRole('tab', { name: 'Steps' })).toBeVisible();
 });
 
@@ -138,7 +138,7 @@ test('the map pans, zooms, fits and moves nodes', async ({
   if (isMobile) return;
   const header = page
     .locator('.flow-node-header')
-    .filter({ hasText: 'Execution inspector' });
+    .filter({ hasText: 'Execution map' });
   const start = (await header.boundingBox())!;
   await page.mouse.move(start.x + 100, start.y + 20);
   await page.mouse.down();
@@ -182,5 +182,57 @@ test('Stop terminates a pending worker and draft edits cancel old runs', async (
   await page.screenshot({
     path: '/tmp/instralize-code-lab.png',
     fullPage: true,
+  });
+});
+
+test('studio panel toggles, moves and adds connected instances', async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto('/');
+  const panel = page.getByRole('complementary', { name: 'Studio' });
+  const toggle = page.getByRole('button', { name: 'Workspace settings' });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await page.screenshot({
+    path: `/tmp/instralize-${isMobile ? 'mobile' : 'desktop'}-closed.png`,
+  });
+  await toggle.click();
+  await expect(
+    page.getByRole('button', { name: 'Add Visualization' }),
+  ).toBeVisible();
+  await page.getByRole('switch', { name: /Minimap/ }).click();
+  await expect(page.locator('.flow-minimap')).toHaveCount(0);
+  await page.getByRole('switch', { name: /Minimap/ }).click();
+  await page.getByRole('button', { name: 'New connected pipeline' }).click();
+  await expect(page.getByRole('heading', { name: 'Visualization 2' })).toBeVisible();
+  await expect(page.locator('.flow-edge-group')).toHaveCount(6);
+  await page.waitForTimeout(700);
+  await page.screenshot({
+    path: `/tmp/instralize-${isMobile ? 'mobile' : 'desktop'}-open.png`,
+  });
+  if (!isMobile) {
+    const handle = page.getByRole('button', { name: 'Move studio panel' });
+    const start = (await panel.boundingBox())!;
+    const box = (await handle.boundingBox())!;
+    await page.mouse.move(box.x + 10, box.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 310, box.y + 210, { steps: 6 });
+    await page.mouse.up();
+    const end = (await panel.boundingBox())!;
+    expect(end.x).toBeGreaterThan(start.x + 250);
+    expect(end.y).toBeGreaterThan(start.y + 150);
+  }
+  await page.getByRole('button', { name: 'Code Lab', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Add Execution map' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Add Algorithms' }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add Visualization' }).click();
+  await expect(page.getByRole('heading', { name: 'Visualization 2' })).toBeVisible();
+  await page.waitForTimeout(700);
+  await page.screenshot({
+    path: `/tmp/instralize-${isMobile ? 'mobile' : 'desktop'}-lab.png`,
   });
 });

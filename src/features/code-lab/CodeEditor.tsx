@@ -13,12 +13,12 @@ import { javascript } from '@codemirror/lang-javascript';
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 const codeColors = HighlightStyle.define([
-  { tag: tags.keyword, color: '#e9b565' },
-  { tag: [tags.variableName, tags.propertyName], color: '#e8e2d8' },
-  { tag: tags.function(tags.variableName), color: '#95bfdc' },
-  { tag: [tags.number, tags.bool], color: '#b8cda3' },
-  { tag: tags.comment, color: '#a59b8d', fontStyle: 'italic' },
-  { tag: [tags.operator, tags.punctuation], color: '#c5beb2' },
+  { tag: tags.keyword, color: '#b7c0ff' },
+  { tag: [tags.variableName, tags.propertyName], color: '#e3e5ea' },
+  { tag: tags.function(tags.variableName), color: '#67b7ff' },
+  { tag: [tags.number, tags.bool], color: '#f2b45c' },
+  { tag: tags.comment, color: '#6b707b', fontStyle: 'italic' },
+  { tag: [tags.operator, tags.punctuation], color: '#9da2ad' },
 ]);
 import {
   defaultKeymap,
@@ -88,8 +88,8 @@ export default function CodeEditor({
           EditorView.theme(
             {
               '&': {
-                backgroundColor: '#1c1c1c',
-                color: '#eee9e0',
+                backgroundColor: '#0d0e10',
+                color: '#ecedf0',
                 fontSize: '12px',
                 height: '100%',
               },
@@ -98,14 +98,14 @@ export default function CodeEditor({
                 padding: '16px 0',
               },
               '.cm-gutters': {
-                backgroundColor: '#1c1c1c',
-                color: '#8f887d',
+                backgroundColor: '#0d0e10',
+                color: '#4f535c',
                 border: 'none',
               },
               '.cm-line': { padding: '0 16px', lineHeight: '1.9' },
-              '.cm-cursor': { borderLeftColor: '#e9b565' },
+              '.cm-cursor': { borderLeftColor: '#b7c0ff' },
               '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-                background: '#51422f !important',
+                background: '#2c3256 !important',
               },
               '.cm-scroller': { overflow: 'auto' },
             },

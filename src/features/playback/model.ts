@@ -62,3 +62,47 @@ export function playbackReducer(state: Playback, action: Action): Playback {
     }
   }
 }
+
+export const createPlayback = (frames: Frame[]): Playback => ({
+  frames,
+  index: 0,
+  playing: false,
+  speed: 1,
+  pending: false,
+});
+
+export type PlaybackGroup = Record<string, Playback>;
+export type PlaybackGroupAction =
+  | { type: 'add'; id: string; frames: Frame[] }
+  | { type: 'remove'; id: string }
+  | { type: 'to'; id: string; action: Action }
+  | { type: 'each'; ids: string[]; action: Action };
+
+/** Independent playback timelines keyed by visualization instance. */
+export function playbackGroupReducer(
+  state: PlaybackGroup,
+  action: PlaybackGroupAction,
+): PlaybackGroup {
+  switch (action.type) {
+    case 'add':
+      return { ...state, [action.id]: createPlayback(action.frames) };
+    case 'remove': {
+      const next = { ...state };
+      delete next[action.id];
+      return next;
+    }
+    case 'to':
+      return state[action.id]
+        ? {
+            ...state,
+            [action.id]: playbackReducer(state[action.id], action.action),
+          }
+        : state;
+    case 'each': {
+      const next = { ...state };
+      for (const id of action.ids)
+        if (next[id]) next[id] = playbackReducer(next[id], action.action);
+      return next;
+    }
+  }
+}

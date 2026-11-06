@@ -11,20 +11,55 @@ import { parseArray, randomValues } from '../algorithms/input';
 import { usePlayback } from '../playback/usePlayback';
 import { PlaybackControls } from '../playback/PlaybackControls';
 import { ArrayView } from '../visualizations/ArrayView';
+import type { ElementStyle } from '../visualizations/ArrayView';
 import { Inspector } from '../visualizations/Inspector';
 import { Canvas } from '../../shared/Canvas';
 import type { FlowEdge, FlowNode } from '../../shared/Canvas';
+import { Icon } from '../../shared/Icon';
+import type {
+  CanvasSettings,
+  FocusRequest,
+} from '../../shared/canvasSettings';
+import { AddNodes } from '../../app/AddNodes';
+import { Disconnected, SourceSelect } from '../../app/NodeParts';
+import { instanceTitle, nextInstance } from '../../app/graph';
 import { examples } from './examples';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 const CodeEditor = lazy(() => import('./CodeEditor'));
 const defaultInput = '42, 17, 63, 8, 35, 51, 24, 12';
 const initialFrames = [initialFrame(parseArray(defaultInput))];
+interface ViewInstance {
+  id: string;
+  n: number;
+  style: ElementStyle;
+}
+interface MapInstance {
+  id: string;
+  n: number;
+  source: string | null;
+}
 interface Diagnostic {
   message: string;
   line?: number;
   kind: string;
 }
-export default function CodeLab() {
+export default function CodeLab({
+  settings,
+  panel,
+}: {
+  settings?: CanvasSettings;
+  panel?: HTMLElement | null;
+}) {
+  // Extra views and maps mirror the single run with their own presentation.
+  const [views, setViews] = useState<ViewInstance[]>([
+    { id: 'visualization-1', n: 1, style: 'bars' },
+  ]);
+  const [maps, setMaps] = useState<MapInstance[]>([
+    { id: 'inspector-1', n: 1, source: 'visualization-1' },
+  ]);
+  const [leaving, setLeaving] = useState<string[]>([]);
+  const [focus, setFocus] = useState<FocusRequest>();
+  const seq = useRef(1);
   const [source, setSource] = useState(() => {
     try {
       return localStorage.getItem('instralize-code-v1') ?? examples.bubble.code;
@@ -138,21 +173,50 @@ export default function CodeLab() {
     }
   };
   const shownFrame = frame ?? initialFrame();
-  const inspector = (
-    <Inspector
-      frame={shownFrame}
-      frames={state.frames}
-      index={state.index}
-      onSeek={(index) => dispatch({ type: 'seek', index })}
-    />
-  );
+  const liveViews = views.filter((v) => !leaving.includes(v.id));
+  const liveMaps = maps.filter((m) => !leaving.includes(m.id));
+  const addView = () => {
+    const view: ViewInstance = {
+      id: `visualization-${++seq.current}`,
+      n: nextInstance(
+        views.map((v) => ({ ...v, kind: 'visualization' })),
+        'visualization',
+      ),
+      style: 'circles',
+    };
+    setViews((v) => [...v, view]);
+    setFocus({ ids: [view.id], n: seq.current });
+  };
+  const addMap = () => {
+    const map: MapInstance = {
+      id: `inspector-${++seq.current}`,
+      n: nextInstance(maps.map((m) => ({ ...m, kind: 'inspector' })), 'inspector'),
+      source: liveViews[liveViews.length - 1]?.id ?? null,
+    };
+    setMaps((m) => [...m, map]);
+    setFocus({ ids: [map.id], n: seq.current });
+  };
+  const remove = (id: string) => {
+    setLeaving((l) => [...l, id]);
+    // Let the exit animation finish before unmounting.
+    window.setTimeout(() => {
+      setViews((v) => v.filter((view) => view.id !== id));
+      setMaps((m) =>
+        m
+          .filter((map) => map.id !== id)
+          .map((map) => (map.source === id ? { ...map, source: null } : map)),
+      );
+      setLeaving((l) => l.filter((x) => x !== id));
+    }, 200);
+  };
   const running = state.pending;
   const nodes: FlowNode[] = [
     {
       id: 'editor',
       title: 'Code editor',
       subtitle: 'JavaScript · function sort(arr)',
-      icon: '{ }',
+      kind: 'code',
+      icon: <Icon name="code" />,
       x: 0,
       y: 0,
       width: 640,
@@ -229,7 +293,8 @@ export default function CodeLab() {
       id: 'run',
       title: 'Run',
       subtitle: 'Input & execution',
-      icon: '▶',
+      kind: 'input',
+      icon: <Icon name="run" />,
       x: 760,
       y: 0,
       width: 340,
@@ -252,7 +317,8 @@ export default function CodeLab() {
               onClick={() => run()}
               disabled={state.pending}
             >
-              ▶ Run & play
+              <Icon name="run" size={14} />
+              Run & play
             </button>
             <button
               onClick={() => {
@@ -266,19 +332,23 @@ export default function CodeLab() {
               }}
               disabled={!state.pending}
             >
+              <Icon name="stop" size={14} />
               Stop
             </button>
             <button onClick={() => run(true)} disabled={state.pending}>
+              <Icon name="check" size={14} />
               Check examples
             </button>
             <button
+              className="icon-button"
               aria-label="Random input"
+              title="Random input"
               onClick={() => {
                 setInput(randomValues().join(', '));
                 invalidate();
               }}
             >
-              ↻
+              <Icon name="shuffle" />
             </button>
           </div>
           {diagnostic && (
@@ -296,58 +366,164 @@ export default function CodeLab() {
         </div>
       ),
     },
-    {
-      id: 'visualization',
-      title: 'Visualization',
-      subtitle: 'Your algorithm, in motion',
-      icon: '▥',
-      x: 1220,
-      y: 0,
-      width: 640,
-      status: state.playing ? 'running' : 'idle',
-      children: (
-        <div className="visualization-panel lab-visualization">
-          <ArrayView frame={shownFrame} speed={state.speed} />
-          <div className="current-explanation">
-            <span className="operation">{shownFrame.operation}</span>
-            <p>{shownFrame.description}</p>
+    ...views.map((view): FlowNode => {
+      const title = instanceTitle('visualization', view.n);
+      return {
+        id: view.id,
+        kind: 'visualization',
+        title,
+        subtitle:
+          view.n === 1 ? 'Your algorithm, in motion' : `Mirrors the run · ${view.style}`,
+        icon: <Icon name="visualization" />,
+        ...(view.id === 'visualization-1' ? { x: 1220, y: 0 } : {}),
+        anchor: 'run',
+        width: 640,
+        status: state.playing ? 'running' : 'idle',
+        leaving: leaving.includes(view.id),
+        onRemove:
+          liveViews.length > 1 && !leaving.includes(view.id)
+            ? () => remove(view.id)
+            : undefined,
+        children: (
+          <div className="visualization-panel lab-visualization">
+            <div className="visualization-toolbar">
+              <span
+                className={`status ${state.pending ? 'running' : state.playing ? 'running' : ''}`}
+              >
+                {state.pending ? 'Tracing' : state.playing ? 'Running' : 'Ready'}
+              </span>
+              <label className="view-select">
+                View
+                <select
+                  aria-label="Visualization style"
+                  value={view.style}
+                  onChange={(e) =>
+                    setViews((v) =>
+                      v.map((item) =>
+                        item.id === view.id
+                          ? { ...item, style: e.target.value as ElementStyle }
+                          : item,
+                      ),
+                    )
+                  }
+                >
+                  {['bars', 'circles', 'squares', 'array'].map((s) => (
+                    <option value={s} key={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="mono muted step-count">
+                Step {state.index} / {Math.max(0, state.frames.length - 1)}
+              </span>
+            </div>
+            <ArrayView frame={shownFrame} style={view.style} speed={state.speed} />
+            <div className="current-explanation">
+              <span className={`operation ${shownFrame.operation}`}>
+                {shownFrame.operation}
+              </span>
+              <p key={state.index}>{shownFrame.description}</p>
+            </div>
+            <PlaybackControls state={state} dispatch={dispatch} />
           </div>
-          <PlaybackControls state={state} dispatch={dispatch} />
-        </div>
-      ),
-    },
-    {
-      id: 'inspector',
-      title: 'Execution inspector',
-      subtitle: 'Understand the process',
-      icon: '◎',
-      x: 1980,
-      y: 0,
-      width: 340,
-      children: inspector,
-    },
+        ),
+      };
+    }),
+    ...maps.map((map): FlowNode => {
+      const title = instanceTitle('inspector', map.n);
+      const source = views.find((v) => v.id === map.source);
+      return {
+        id: map.id,
+        kind: 'inspector',
+        title,
+        subtitle: source
+          ? `Following ${instanceTitle('visualization', source.n)}`
+          : 'Not connected',
+        icon: <Icon name="map" />,
+        ...(map.id === 'inspector-1' ? { x: 1980, y: 0 } : {}),
+        anchor: map.source ?? undefined,
+        width: 340,
+        status: source && state.playing ? 'running' : 'idle',
+        leaving: leaving.includes(map.id),
+        onRemove:
+          liveMaps.length > 1 && !leaving.includes(map.id)
+            ? () => remove(map.id)
+            : undefined,
+        children: (
+          <>
+            <SourceSelect
+              owner={title}
+              label="Visualization"
+              value={map.source}
+              options={liveViews.map((v) => ({
+                id: v.id,
+                label: instanceTitle('visualization', v.n),
+              }))}
+              onChange={(id) =>
+                setMaps((m) =>
+                  m.map((item) =>
+                    item.id === map.id ? { ...item, source: id } : item,
+                  ),
+                )
+              }
+            />
+            {source ? (
+              <Inspector
+                frame={shownFrame}
+                frames={state.frames}
+                index={state.index}
+                onSeek={(index) => dispatch({ type: 'seek', index })}
+              />
+            ) : (
+              <Disconnected>
+                Connect a Visualization node to follow the run.
+              </Disconnected>
+            )}
+          </>
+        ),
+      };
+    }),
   ];
   const edges: FlowEdge[] = [
     { id: 'e-r', from: 'editor', to: 'run' },
-    {
-      id: 'r-v',
+    ...views.map((view) => ({
+      id: `run->${view.id}`,
       from: 'run',
-      to: 'visualization',
+      to: view.id,
       active: running || state.playing,
-    },
-    {
-      id: 'v-i',
-      from: 'visualization',
-      to: 'inspector',
-      active: state.playing,
-    },
+    })),
+    ...maps
+      .filter((map) => map.source && views.some((v) => v.id === map.source))
+      .map((map) => ({
+        id: `${map.source}->${map.id}`,
+        from: map.source!,
+        to: map.id,
+        active: state.playing,
+      })),
   ];
   return (
-    <Canvas
-      label="Code Lab workspace map"
-      nodes={nodes}
-      edges={edges}
-      initialFocus="editor"
-    />
+    <>
+      <Canvas
+        label="Code Lab workspace map"
+        nodes={nodes}
+        edges={edges}
+        initialFocus="editor"
+        settings={settings}
+        focus={focus}
+      />
+      <AddNodes
+        target={panel}
+        items={[
+          {
+            kind: 'visualization',
+            count: liveViews.length,
+            onAdd: addView,
+          },
+          { kind: 'inspector', count: liveMaps.length, onAdd: addMap },
+        ]}
+        note="Code Lab has one editor and run. Extra views mirror that run, so you can compare styles side by side."
+      />
+    </>
   );
 }
