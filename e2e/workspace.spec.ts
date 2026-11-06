@@ -258,3 +258,37 @@ test('recursion grows a tree and returns values to callers', async ({
   await page.waitForTimeout(300);
   await page.screenshot({ path: '/tmp/instralize-overview.png' });
 });
+
+test('connectors move around nodes and nodes resize', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'Pointer dragging is covered on desktop');
+  await page.goto('/');
+  await focusNode(page, 'Input');
+  await page.waitForTimeout(600);
+  const node = page.locator('.flow-node').filter({
+    has: page.getByRole('heading', { name: 'Input', exact: true }),
+  });
+  const port = node.locator('[data-port="out"]');
+  const box = (await node.boundingBox())!;
+  const start = (await port.boundingBox())!;
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height + 30, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  await expect(port).toHaveClass(/side-bottom/);
+  const grip = node.locator('[data-resize="xy"]');
+  await node.hover();
+  const g = (await grip.boundingBox())!;
+  await page.mouse.move(g.x + 8, g.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(g.x + 128, g.y + 88, { steps: 8 });
+  await page.mouse.up();
+  const resized = (await node.boundingBox())!;
+  expect(resized.width).toBeGreaterThan(box.width + 60);
+  expect(resized.height).toBeGreaterThan(box.height + 40);
+  await page.screenshot({ path: '/tmp/instralize-ports.png' });
+});

@@ -662,26 +662,90 @@ code {
 .flow-node-body {
   padding: 14px;
 }
-/* n8n-style ports: bar for input, circle for output. */
+/* n8n-style ports: bar for input, circle for output. Both can move. */
 .flow-port {
   position: absolute;
-  top: 26px;
+  z-index: 3;
   background: var(--edge);
-  transition: background 0.2s var(--ease);
+  cursor: grab;
+  touch-action: none;
+  transition:
+    top 0.18s var(--ease),
+    left 0.18s var(--ease),
+    background 0.2s var(--ease),
+    scale 0.15s var(--ease);
 }
-.flow-port.in {
-  left: -5px;
+.flow-port::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+.flow-port:hover,
+.flow-port:focus-visible,
+.flow-port.moving {
+  background: var(--text-2);
+  scale: 1.25;
+}
+.flow-port:focus-visible {
+  outline: 2px solid var(--text-2);
+  outline-offset: 3px;
+}
+.flow-port.moving {
+  cursor: grabbing;
+  transition:
+    background 0.2s var(--ease),
+    scale 0.15s var(--ease);
+}
+.flow-port.in.side-left,
+.flow-port.in.side-right {
   width: 6px;
   height: 16px;
   margin-top: -8px;
   border-radius: 2px;
 }
+.flow-port.in.side-top,
+.flow-port.in.side-bottom {
+  width: 16px;
+  height: 6px;
+  margin-left: -8px;
+  border-radius: 2px;
+}
+.flow-port.in.side-left {
+  left: -5px;
+}
+.flow-port.in.side-right {
+  right: -5px;
+}
+.flow-port.in.side-top {
+  top: -5px;
+}
+.flow-port.in.side-bottom {
+  bottom: -5px;
+}
 .flow-port.out {
-  right: -6px;
   width: 12px;
   height: 12px;
-  margin-top: -6px;
   border-radius: 50%;
+}
+.flow-port.out.side-left,
+.flow-port.out.side-right {
+  margin-top: -6px;
+}
+.flow-port.out.side-top,
+.flow-port.out.side-bottom {
+  margin-left: -6px;
+}
+.flow-port.out.side-right {
+  right: -6px;
+}
+.flow-port.out.side-left {
+  left: -6px;
+}
+.flow-port.out.side-top {
+  top: -6px;
+}
+.flow-port.out.side-bottom {
+  bottom: -6px;
 }
 .flow-node.selected .flow-port {
   background: #8a8d95;
@@ -689,6 +753,99 @@ code {
 .status-running .flow-port.out,
 .status-success .flow-port.out {
   background: var(--complete);
+}
+/* Resize: right edge, bottom edge and a visible corner grip. */
+.flow-resize {
+  position: absolute;
+  z-index: 2;
+  touch-action: none;
+}
+.flow-resize.x {
+  top: 52px;
+  bottom: 14px;
+  right: -4px;
+  width: 8px;
+  cursor: ew-resize;
+}
+.flow-resize.y {
+  left: 14px;
+  right: 14px;
+  bottom: -4px;
+  height: 8px;
+  cursor: ns-resize;
+}
+.flow-resize.xy {
+  right: 1px;
+  bottom: 1px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  border-radius: 0 0 var(--radius) 0;
+  background:
+    linear-gradient(
+      135deg,
+      transparent 55%,
+      var(--subtle) 55%,
+      var(--subtle) 62%,
+      transparent 62%,
+      transparent 74%,
+      var(--subtle) 74%,
+      var(--subtle) 81%,
+      transparent 81%
+    );
+  opacity: 0;
+  transition: opacity 0.18s var(--ease);
+}
+.flow-node:hover > .flow-resize.xy,
+.flow-node.selected > .flow-resize.xy,
+.flow-node.resizing > .flow-resize.xy,
+.flow-resize.xy:focus-visible {
+  opacity: 1;
+}
+.flow-resize.xy:focus-visible {
+  outline: 2px solid var(--text-2);
+  outline-offset: 2px;
+}
+.flow-node.resizing {
+  border-color: #55575d;
+  user-select: none;
+}
+.flow-node.sized-h {
+  display: flex;
+  flex-direction: column;
+}
+.flow-node.sized-h > .flow-node-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.flow-node.sized-h > .flow-node-body:has(> .viz),
+.flow-node.sized-h > .flow-node-body:has(> .editor-panel) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.flow-node.sized-h .viz,
+.flow-node.sized-h .editor-panel {
+  flex: 1;
+  min-height: 0;
+}
+.flow-node.sized-h .viz-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.flow-node.sized-h .tree-scroll {
+  max-height: none;
+}
+.flow-node.sized-h .code-editor {
+  flex: 1;
+  height: auto;
+  min-height: 120px;
+}
+.flow-node.sized-h .exec-log {
+  max-height: none;
 }
 .flow-controls {
   position: absolute;

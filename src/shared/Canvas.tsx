@@ -59,14 +59,100 @@ interface Point {
 }
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2;
-const PORT_Y = 28;
 const GRID = 24;
 const FIT_PADDING = 56;
 const ESTIMATED_HEIGHT = 340;
 const INTERACTIVE =
   'input,textarea,select,button,a,summary,label,[contenteditable],.cm-editor,[role="slider"]';
+const MIN_W = 240;
+const MIN_H = 140;
+const PORT_INSET = 14;
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+type Side = 'top' | 'right' | 'bottom' | 'left';
+type PortKind = 'in' | 'out';
+interface PortPlacement {
+  side: Side;
+  /** Distance along the side from its top/left corner. */
+  offset: number;
+}
+const DEFAULT_PORTS: Record<PortKind, PortPlacement> = {
+  in: { side: 'left', offset: 26 },
+  out: { side: 'right', offset: 26 },
+};
+const NORMALS: Record<Side, [number, number]> = {
+  top: [0, -1],
+  right: [1, 0],
+  bottom: [0, 1],
+  left: [-1, 0],
+};
+const horizontal = (side: Side) => side === 'top' || side === 'bottom';
+const sideLength = (side: Side, size: Size) =>
+  horizontal(side) ? size.w : size.h;
+const clampPort = (port: PortPlacement, size: Size): PortPlacement => ({
+  side: port.side,
+  offset: clamp(
+    port.offset,
+    PORT_INSET,
+    Math.max(PORT_INSET, sideLength(port.side, size) - PORT_INSET),
+  ),
+});
+function portPoint(x: number, y: number, size: Size, port: PortPlacement) {
+  const { side, offset } = clampPort(port, size);
+  if (side === 'top') return { x: x + offset, y };
+  if (side === 'bottom') return { x: x + offset, y: y + size.h };
+  if (side === 'left') return { x, y: y + offset };
+  return { x: x + size.w, y: y + offset };
+}
+/** Snap a point (relative to the node) to the closest spot on its border. */
+function nearestPort(px: number, py: number, size: Size): PortPlacement {
+  const distances: [Side, number][] = [
+    ['top', Math.abs(py)],
+    ['bottom', Math.abs(py - size.h)],
+    ['left', Math.abs(px)],
+    ['right', Math.abs(px - size.w)],
+  ];
+  const side = distances.sort((a, b) => a[1] - b[1])[0][0];
+  return clampPort({ side, offset: horizontal(side) ? px : py }, size);
+}
+/** Arrow keys slide along the current side or jump to another side. */
+function nudgePort(port: PortPlacement, key: string, size: Size, step: number) {
+  const along: Record<string, number> = horizontal(port.side)
+    ? { ArrowLeft: -step, ArrowRight: step }
+    : { ArrowUp: -step, ArrowDown: step };
+  if (key in along) {
+    const next = port.offset + along[key];
+    const max = Math.max(PORT_INSET, sideLength(port.side, size) - PORT_INSET);
+    // Past a corner, continue onto the adjacent side.
+    if (next < PORT_INSET || next > max) {
+      const end = next < PORT_INSET ? 'start' : 'end';
+      const turn: Record<Side, Record<'start' | 'end', Side>> = {
+        right: { start: 'top', end: 'bottom' },
+        left: { start: 'top', end: 'bottom' },
+        top: { start: 'left', end: 'right' },
+        bottom: { start: 'left', end: 'right' },
+      };
+      const side = turn[port.side][end];
+      const atFar = port.side === 'right' || port.side === 'bottom';
+      return clampPort(
+        { side, offset: atFar ? sideLength(side, size) : 0 },
+        size,
+      );
+    }
+    return clampPort({ ...port, offset: next }, size);
+  }
+  const jump: Record<string, Side> = {
+    ArrowUp: 'top',
+    ArrowDown: 'bottom',
+    ArrowLeft: 'left',
+    ArrowRight: 'right',
+  };
+  const side = jump[key];
+  if (!side) return null;
+  const ratio = port.offset / Math.max(1, sideLength(port.side, size));
+  return clampPort({ side, offset: ratio * sideLength(side, size) }, size);
+}
 const snap = (value: number) => Math.round(value / GRID) * GRID;
 
 function canScrollNatively(start: HTMLElement, root: HTMLElement, dy: number) {
@@ -120,9 +206,28 @@ export function Canvas({
   const initialFocusRef = useRef(initialFocus);
   const fitted = useRef(false);
   const pendingFocus = useRef<string[] | null>(null);
+  const [ports, setPorts] = useState<
+    Record<string, Partial<Record<PortKind, PortPlacement>>>
+  >({});
+  const [dims, setDims] = useState<Record<string, { w?: number; h?: number }>>(
+    {},
+  );
+  const [adjusting, setAdjusting] = useState<string | null>(null);
   const gesture = useRef<
     | { kind: 'pan'; x: number; y: number }
     | { kind: 'node'; id: string; x: number; y: number }
+    | { kind: 'port'; id: string; port: PortKind; x: number; y: number }
+    | {
+        kind: 'resize';
+        id: string;
+        axis: string;
+        x: number;
+        y: number;
+        sx: number;
+        sy: number;
+        w: number;
+        h: number;
+      }
     | null
   >(null);
   const pointers = useRef(new Map<number, Point>());
@@ -383,7 +488,30 @@ export function Canvas({
       el.setPointerCapture(event.pointerId);
       return;
     }
-    if (inNode && handle && !target.closest('button, select, input, [role="tooltip"]')) {
+    const portEl = target.closest('[data-port]') as HTMLElement | null;
+    const resizeEl = target.closest('[data-resize]') as HTMLElement | null;
+    if (inNode && portEl) {
+      const id = inNode.dataset.nodeId!;
+      const port = portEl.dataset.port as PortKind;
+      gesture.current = { kind: 'port', id, port, x: event.clientX, y: event.clientY };
+      setAdjusting(`${id}:${port}`);
+    } else if (inNode && resizeEl) {
+      const id = inNode.dataset.nodeId!;
+      const size = sizesRef.current[id] ?? { w: inNode.offsetWidth, h: inNode.offsetHeight };
+      gesture.current = {
+        kind: 'resize',
+        id,
+        axis: resizeEl.dataset.resize!,
+        x: event.clientX,
+        y: event.clientY,
+        sx: event.clientX,
+        sy: event.clientY,
+        w: size.w,
+        h: size.h,
+      };
+      setAdjusting(`${id}:resize`);
+      setSmooth(false);
+    } else if (inNode && handle && !target.closest('button, select, input, [role="tooltip"]')) {
       gesture.current = {
         kind: 'node',
         id: inNode.dataset.nodeId!,
@@ -427,7 +555,37 @@ export function Canvas({
     const dy = event.clientY - g.y;
     gesture.current = { ...g, x: event.clientX, y: event.clientY };
     if (g.kind === 'pan') panBy(dx, dy);
-    else {
+    else if (g.kind === 'port') {
+      const v = viewRef.current;
+      const node = nodesRef.current.find((n) => n.id === g.id);
+      const size = sizesRef.current[g.id];
+      if (!v || !node || !size) return;
+      const rect = viewport.current!.getBoundingClientRect();
+      const p = position(node);
+      const placement = nearestPort(
+        (event.clientX - rect.left - v.x) / v.z - p.x,
+        (event.clientY - rect.top - v.y) / v.z - p.y,
+        size,
+      );
+      setPorts((all) => ({
+        ...all,
+        [g.id]: { ...all[g.id], [g.port]: placement },
+      }));
+    } else if (g.kind === 'resize') {
+      const z = viewRef.current?.z ?? 1;
+      setDims((all) => ({
+        ...all,
+        [g.id]: {
+          ...all[g.id],
+          ...(g.axis.includes('x')
+            ? { w: Math.max(MIN_W, g.w + (event.clientX - g.sx) / z) }
+            : {}),
+          ...(g.axis.includes('y')
+            ? { h: Math.max(MIN_H, g.h + (event.clientY - g.sy) / z) }
+            : {}),
+        },
+      }));
+    } else {
       const z = viewRef.current?.z ?? 1;
       const node = nodesRef.current.find((n) => n.id === g.id);
       if (!node) return;
@@ -455,9 +613,22 @@ export function Canvas({
         pulseRelayout(220);
       }
     }
+    if (g?.kind === 'resize' && settings.snap)
+      setDims((all) => {
+        const d = all[g.id];
+        if (!d) return all;
+        return {
+          ...all,
+          [g.id]: {
+            w: d.w === undefined ? undefined : Math.max(MIN_W, snap(d.w)),
+            h: d.h === undefined ? undefined : Math.max(MIN_H, snap(d.h)),
+          },
+        };
+      });
     gesture.current = null;
     setPanning(false);
     setDragging(null);
+    setAdjusting(null);
   };
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -479,6 +650,8 @@ export function Canvas({
   const resetLayout = () => {
     offsetsRef.current = {};
     setOffsets({});
+    setPorts({});
+    setDims({});
     pulseRelayout(500);
     requestAnimationFrame(() => fitAll(true));
   };
@@ -550,15 +723,21 @@ export function Canvas({
             const a = byId.get(edge.from);
             const b = byId.get(edge.to);
             const sa = sizes[edge.from];
-            if (!a || !b || !sa) return null;
+            const sb = sizes[edge.to];
+            if (!a || !b || !sa || !sb) return null;
             // n8n-style: leave the output circle, end on the input bar with an arrowhead.
-            const x1 = a.x + sa.w + 6;
-            const y1 = a.y + PORT_Y;
-            const x2 = b.x - 7;
-            const y2 = b.y + PORT_Y;
-            const dx = x2 - x1;
-            const c = dx > 0 ? Math.max(40, dx * 0.5) : 120 + Math.abs(dx) * 0.25;
-            const d = `M${x1} ${y1} C${x1 + c} ${y1},${x2 - c} ${y2},${x2} ${y2}`;
+            const outPort = ports[edge.from]?.out ?? DEFAULT_PORTS.out;
+            const inPort = ports[edge.to]?.in ?? DEFAULT_PORTS.in;
+            const [nax, nay] = NORMALS[clampPort(outPort, sa).side];
+            const [nbx, nby] = NORMALS[clampPort(inPort, sb).side];
+            const pa = portPoint(a.x, a.y, sa, outPort);
+            const pb = portPoint(b.x, b.y, sb, inPort);
+            const x1 = pa.x + nax * 6;
+            const y1 = pa.y + nay * 6;
+            const x2 = pb.x + nbx * 7;
+            const y2 = pb.y + nby * 7;
+            const c = Math.max(50, Math.hypot(x2 - x1, y2 - y1) * 0.45);
+            const d = `M${x1} ${y1} C${x1 + nax * c} ${y1 + nay * c},${x2 + nbx * c} ${y2 + nby * c},${x2} ${y2}`;
             const linked = edge.from === selected || edge.to === selected;
             const leaving = a.node.leaving || b.node.leaving;
             const state = edge.active ? 'active' : linked ? 'linked' : 'idle';
@@ -586,6 +765,30 @@ export function Canvas({
             y={y}
             selected={selected === node.id}
             dragging={dragging === node.id}
+            adjusting={adjusting?.startsWith(`${node.id}:`) ? adjusting.slice(node.id.length + 1) : null}
+            size={sizes[node.id]}
+            dims={dims[node.id]}
+            ports={ports[node.id]}
+            onPortChange={(port, placement) =>
+              setPorts((all) => ({
+                ...all,
+                [node.id]: { ...all[node.id], [port]: placement ?? undefined },
+              }))
+            }
+            onResize={(dw, dh) => {
+              const size = sizesRef.current[node.id];
+              if (!size) return;
+              setDims((all) => ({
+                ...all,
+                [node.id]: {
+                  w: Math.max(MIN_W, (all[node.id]?.w ?? size.w) + dw),
+                  h:
+                    dh || all[node.id]?.h !== undefined
+                      ? Math.max(MIN_H, (all[node.id]?.h ?? size.h) + dh)
+                      : undefined,
+                },
+              }));
+            }}
             onSize={reportSize}
             onFocus={() => frameNodes([node.id], 1.1, true)}
           />
@@ -732,6 +935,12 @@ function NodeView({
   z,
   selected,
   dragging,
+  adjusting,
+  size,
+  dims,
+  ports,
+  onPortChange,
+  onResize,
   onSize,
   onFocus,
 }: {
@@ -741,6 +950,12 @@ function NodeView({
   y: number;
   selected: boolean;
   dragging: boolean;
+  adjusting: string | null;
+  size?: Size;
+  dims?: { w?: number; h?: number };
+  ports?: Partial<Record<PortKind, PortPlacement>>;
+  onPortChange: (port: PortKind, placement: PortPlacement | null) => void;
+  onResize: (dw: number, dh: number) => void;
   onSize: (id: string, size: Size) => void;
   onFocus: () => void;
 }) {
@@ -760,6 +975,8 @@ function NodeView({
     `status-${node.status ?? 'idle'}`,
     selected && 'selected',
     dragging && 'dragging',
+    adjusting === 'resize' && 'resizing',
+    dims?.h !== undefined && 'sized-h',
     node.leaving && 'leaving',
   ]
     .filter(Boolean)
@@ -772,7 +989,8 @@ function NodeView({
       data-kind={node.kind}
       aria-labelledby={`node-title-${node.id}`}
       style={{
-        width: node.width,
+        width: dims?.w ?? node.width,
+        height: dims?.h,
         transform: `translate(${x}px, ${y}px)`,
         zIndex: dragging ? 1000 : z,
       }}
@@ -812,13 +1030,69 @@ function NodeView({
           </button>
         )}
       </header>
-      {node.input !== false && (
-        <span className="flow-port in" aria-hidden="true" />
-      )}
-      {node.output !== false && (
-        <span className="flow-port out" aria-hidden="true" />
-      )}
+      {(['in', 'out'] as const)
+        .filter((kind) => node[kind === 'in' ? 'input' : 'output'] !== false)
+        .map((kind) => {
+          const placement = size
+            ? clampPort(ports?.[kind] ?? DEFAULT_PORTS[kind], size)
+            : (ports?.[kind] ?? DEFAULT_PORTS[kind]);
+          const name = kind === 'in' ? 'Input' : 'Output';
+          return (
+            <span
+              key={kind}
+              data-port={kind}
+              role="button"
+              tabIndex={0}
+              className={`flow-port ${kind} side-${placement.side}${adjusting === kind ? ' moving' : ''}`}
+              style={
+                horizontal(placement.side)
+                  ? { left: placement.offset }
+                  : { top: placement.offset }
+              }
+              aria-label={`${name} connector of ${node.title}, ${placement.side} side. Drag or use arrow keys to move; double-click to reset.`}
+              title={`${name} connector · drag to move`}
+              onDoubleClick={() => onPortChange(kind, null)}
+              onKeyDown={(event) => {
+                if (!size) return;
+                const next = nudgePort(
+                  placement,
+                  event.key,
+                  size,
+                  event.shiftKey ? 48 : 12,
+                );
+                if (!next) return;
+                event.preventDefault();
+                event.stopPropagation();
+                onPortChange(kind, next);
+              }}
+            />
+          );
+        })}
       <div className="flow-node-body">{node.children}</div>
+      <span className="flow-resize x" data-resize="x" aria-hidden="true" />
+      <span className="flow-resize y" data-resize="y" aria-hidden="true" />
+      <span
+        className="flow-resize xy"
+        data-resize="xy"
+        role="button"
+        tabIndex={0}
+        aria-label={`Resize ${node.title}. Drag or use arrow keys.`}
+        title="Drag to resize"
+        onKeyDown={(event) => {
+          const step = event.shiftKey ? 64 : 16;
+          const delta: Record<string, [number, number]> = {
+            ArrowRight: [step, 0],
+            ArrowLeft: [-step, 0],
+            ArrowDown: [0, step],
+            ArrowUp: [0, -step],
+          };
+          const d = delta[event.key];
+          if (!d) return;
+          event.preventDefault();
+          event.stopPropagation();
+          onResize(...d);
+        }}
+      />
     </section>
   );
 }
