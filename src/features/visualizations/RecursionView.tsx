@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { CallNode, Frame } from '../algorithms/types';
 import { Icon } from '../../shared/Icon';
@@ -61,7 +61,6 @@ export function RecursionView({
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const reduced = useReducedMotion();
-  const scroller = useRef<HTMLDivElement>(null);
   const { positions, width, height } = layoutTree(frame.nodes);
   const detail = frame.nodes.find((node) => node.id === selected);
   const returnedBefore = new Set(
@@ -72,21 +71,7 @@ export function RecursionView({
         (n) => n.status === 'returned' && n.parentId && !returnedBefore.has(n.id),
       )
     : [];
-  const active = [...frame.nodes].reverse().find((n) => n.status === 'active');
-  const activePos = active ? positions.get(active.id) : undefined;
   const motionTransition = reduced ? { duration: 0 } : spring;
-
-  // Keep the running call in view as the tree grows sideways.
-  const activeX = activePos?.x;
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el || activeX === undefined) return;
-    if (activeX < el.scrollLeft || activeX + NODE_W > el.scrollLeft + el.clientWidth)
-      el.scrollTo?.({
-        left: activeX + NODE_W / 2 - el.clientWidth / 2,
-        behavior: reduced ? 'auto' : 'smooth',
-      });
-  }, [activeX, reduced]);
 
   return (
     <section className="recursion-workspace" aria-label="Recursive calls">
@@ -112,7 +97,7 @@ export function RecursionView({
           ))}
         </div>
       )}
-      <div className="tree-scroll" ref={scroller}>
+      <div className="tree-frame">
         <div className="tree" style={{ width, height }}>
           <svg
             aria-hidden="true"

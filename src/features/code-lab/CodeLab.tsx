@@ -384,6 +384,7 @@ export default function CodeLab({
         ...(view.id === 'visualization-1' ? { x: 1220, y: 0 } : {}),
         anchor: 'run',
         width: 640,
+        fitContent: true,
         status: state.playing ? 'running' : 'idle',
         leaving: leaving.includes(view.id),
         onRemove:

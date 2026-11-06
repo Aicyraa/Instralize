@@ -590,6 +590,7 @@ export function Explore({
       const input = nodeById(node.source);
       return {
         ...base,
+        fitContent: true,
         subtitle: input ? `from ${instanceTitle(input.kind, input.n)}` : 'Not connected',
         status: p?.playing
           ? 'running'

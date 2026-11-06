@@ -833,11 +833,25 @@ code {
 }
 .flow-node.sized-h .viz-stage {
   flex: 1;
-  min-height: 0;
-  overflow: auto;
 }
-.flow-node.sized-h .tree-scroll {
-  max-height: none;
+/* Visualizations grow with their values; resizing can only add space. */
+.flow-node.fit-content {
+  min-width: max-content;
+  min-height: min-content;
+  transition:
+    border-color 0.2s var(--ease),
+    box-shadow 0.2s var(--ease),
+    width 0.35s var(--ease-out);
+  interpolate-size: allow-keywords;
+}
+.flow-node.fit-content.resizing {
+  transition: none;
+}
+.flow-node.fit-content > .flow-node-body {
+  overflow: visible;
+}
+.flow-node.fit-content .viz {
+  min-width: 440px;
 }
 .flow-node.sized-h .code-editor {
   flex: 1;
@@ -1160,8 +1174,7 @@ code {
 }
 .array-workspace {
   flex: 1;
-  padding: 64px 24px 28px;
-  overflow: auto;
+  padding: 64px 28px 28px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1325,8 +1338,6 @@ code {
 .buffer-values {
   display: flex;
   gap: 4px;
-  overflow: auto;
-  max-width: 100%;
 }
 .buffer-values span {
   padding: 3px 7px;
@@ -1612,15 +1623,13 @@ input[type='range']::-moz-range-thumb {
 .recursion-workspace {
   padding: 56px 16px 16px;
   flex: 1;
-  min-width: 0;
-}
-.tree-scroll {
-  overflow: auto;
-  max-height: 520px;
 }
 .tree {
   position: relative;
   margin: 0 auto;
+  transition:
+    width 0.4s var(--ease-out),
+    height 0.4s var(--ease-out);
 }
 .tree-edges {
   position: absolute;

@@ -292,3 +292,53 @@ test('connectors move around nodes and nodes resize', async ({
   expect(resized.height).toBeGreaterThan(box.height + 40);
   await page.screenshot({ path: '/tmp/instralize-ports.png' });
 });
+
+test('output connector starts centered and visualizations grow with content', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'Layout measurement on desktop');
+  await page.goto('/');
+  const viz = page.locator('.flow-node').filter({
+    has: page.getByRole('heading', { name: 'Visualization', exact: true }),
+  });
+  const port = viz.locator('[data-port="out"]');
+  await expect
+    .poll(async () => {
+      const node = (await viz.boundingBox())!;
+      const box = (await port.boundingBox())!;
+      return Math.abs(box.y + box.height / 2 - (node.y + node.height / 2));
+    })
+    .toBeLessThan(3);
+  const nodeBox = (await viz.boundingBox())!;
+  const portBox = (await port.boundingBox())!;
+  expect(portBox.x).toBeGreaterThan(nodeBox.x + nodeBox.width - 10);
+
+  const before = await viz.evaluate((el) => el.offsetWidth);
+  await focusNode(page, 'Input');
+  const values = Array.from({ length: 40 }, (_, i) => (i * 37) % 97).join(', ');
+  await page.getByRole('textbox', { name: 'Array values' }).fill(values);
+  await page.getByRole('button', { name: 'Apply input' }).click();
+  await expect
+    .poll(() => viz.evaluate((el) => el.offsetWidth))
+    .toBeGreaterThan(before + 400);
+  const map = page.locator('.flow-node').filter({
+    has: page.getByRole('heading', { name: 'Execution map', exact: true }),
+  });
+  await expect
+    .poll(async () => {
+      const a = (await viz.boundingBox())!;
+      const b = (await map.boundingBox())!;
+      return b.x - (a.x + a.width);
+    })
+    .toBeGreaterThan(0);
+  const scrollers = await viz.evaluate((root) =>
+    [root, ...root.querySelectorAll<HTMLElement>('*')].filter(
+      (el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible',
+    ).length,
+  );
+  expect(scrollers).toBe(0);
+  await page.getByRole('button', { name: 'Fit view' }).click();
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: '/tmp/instralize-wide.png' });
+});

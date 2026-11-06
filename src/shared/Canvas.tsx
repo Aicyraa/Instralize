@@ -27,7 +27,10 @@ export interface FlowNode {
   x?: number;
   y?: number;
   anchor?: string;
+  /** Placement estimate; also the fixed width unless `fitContent` is set. */
   width: number;
+  /** Size the node to its content; manual resizing can only enlarge it. */
+  fitContent?: boolean;
   status?: NodeStatus;
   leaving?: boolean;
   onRemove?: () => void;
@@ -77,10 +80,11 @@ interface PortPlacement {
   /** Distance along the side from its top/left corner. */
   offset: number;
 }
-const DEFAULT_PORTS: Record<PortKind, PortPlacement> = {
-  in: { side: 'left', offset: 26 },
-  out: { side: 'right', offset: 26 },
-};
+/** Defaults: input bar beside the header, output circle centered on the right. */
+const defaultPort = (kind: PortKind, size?: Size): PortPlacement =>
+  kind === 'out'
+    ? { side: 'right', offset: size ? size.h / 2 : 26 }
+    : { side: 'left', offset: 26 };
 const NORMALS: Record<Side, [number, number]> = {
   top: [0, -1],
   right: [1, 0],
@@ -402,12 +406,41 @@ export function Canvas({
     (id: string, size: Size) => {
       const prev = sizesRef.current[id];
       if (prev && prev.w === size.w && prev.h === size.h) return;
+      // Content-sized nodes push neighbours on their right instead of covering them.
+      const node = nodesRef.current.find((n) => n.id === id);
+      if (
+        node?.fitContent &&
+        prev?.w &&
+        size.w &&
+        prev.w !== size.w &&
+        gesture.current?.kind !== 'resize'
+      ) {
+        const p = position(node);
+        const right = p.x + prev.w;
+        const bottom = p.y + Math.max(prev.h, size.h);
+        const dw = size.w - prev.w;
+        const next = { ...offsetsRef.current };
+        let moved = false;
+        for (const other of nodesRef.current) {
+          const os = sizesRef.current[other.id];
+          if (other.id === id || !os?.w) continue;
+          const q = position(other);
+          if (q.x >= right - 1 && q.y < bottom && q.y + os.h > p.y) {
+            next[other.id] = { x: q.x + dw, y: q.y };
+            moved = true;
+          }
+        }
+        if (moved) {
+          offsetsRef.current = next;
+          setOffsets(next);
+        }
+      }
       sizesRef.current = { ...sizesRef.current, [id]: size };
       setSizes(sizesRef.current);
       initialFit();
       tryFocus();
     },
-    [initialFit, tryFocus],
+    [initialFit, position, tryFocus],
   );
 
   const zoomAt = useCallback(
@@ -726,8 +759,8 @@ export function Canvas({
             const sb = sizes[edge.to];
             if (!a || !b || !sa || !sb) return null;
             // n8n-style: leave the output circle, end on the input bar with an arrowhead.
-            const outPort = ports[edge.from]?.out ?? DEFAULT_PORTS.out;
-            const inPort = ports[edge.to]?.in ?? DEFAULT_PORTS.in;
+            const outPort = ports[edge.from]?.out ?? defaultPort('out', sa);
+            const inPort = ports[edge.to]?.in ?? defaultPort('in', sb);
             const [nax, nay] = NORMALS[clampPort(outPort, sa).side];
             const [nbx, nby] = NORMALS[clampPort(inPort, sb).side];
             const pa = portPoint(a.x, a.y, sa, outPort);
@@ -977,6 +1010,7 @@ function NodeView({
     dragging && 'dragging',
     adjusting === 'resize' && 'resizing',
     dims?.h !== undefined && 'sized-h',
+    node.fitContent && 'fit-content',
     node.leaving && 'leaving',
   ]
     .filter(Boolean)
@@ -989,7 +1023,7 @@ function NodeView({
       data-kind={node.kind}
       aria-labelledby={`node-title-${node.id}`}
       style={{
-        width: dims?.w ?? node.width,
+        width: dims?.w ?? (node.fitContent ? 'max-content' : node.width),
         height: dims?.h,
         transform: `translate(${x}px, ${y}px)`,
         zIndex: dragging ? 1000 : z,
@@ -1031,11 +1065,15 @@ function NodeView({
         )}
       </header>
       {(['in', 'out'] as const)
-        .filter((kind) => node[kind === 'in' ? 'input' : 'output'] !== false)
+        // Wait for measurement so default ports never slide in from a guess.
+        .filter(
+          (kind) => size && node[kind === 'in' ? 'input' : 'output'] !== false,
+        )
         .map((kind) => {
-          const placement = size
-            ? clampPort(ports?.[kind] ?? DEFAULT_PORTS[kind], size)
-            : (ports?.[kind] ?? DEFAULT_PORTS[kind]);
+          const placement = clampPort(
+            ports?.[kind] ?? defaultPort(kind, size),
+            size!,
+          );
           const name = kind === 'in' ? 'Input' : 'Output';
           return (
             <span
