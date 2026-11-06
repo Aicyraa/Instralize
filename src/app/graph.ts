@@ -18,7 +18,6 @@ export const nodeKinds: Record<
     icon: IconName;
     width: number;
     parent: NodeKind | null;
-    hint: string;
   }
 > = {
   algorithm: {
@@ -26,28 +25,24 @@ export const nodeKinds: Record<
     icon: 'algorithms',
     width: 290,
     parent: null,
-    hint: 'Pick a procedure',
   },
   input: {
     title: 'Input',
     icon: 'input',
     width: 320,
     parent: 'algorithm',
-    hint: 'Values to trace',
   },
   visualization: {
     title: 'Visualization',
     icon: 'visualization',
     width: 760,
     parent: 'input',
-    hint: 'Animated playback',
   },
   inspector: {
     title: 'Execution map',
     icon: 'map',
     width: 340,
     parent: 'visualization',
-    hint: 'Steps & metrics',
   },
 };
 

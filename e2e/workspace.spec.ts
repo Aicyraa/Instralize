@@ -11,7 +11,7 @@ test('explore validates, searches and replays on desktop and mobile', async ({
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
   await expect(
-    page.getByRole('heading', { name: 'Bubble sort', level: 1 }),
+    page.getByRole('button', { name: 'About Bubble sort' }),
   ).toBeVisible();
   await focusNode(page, 'Algorithms');
   await page
@@ -84,7 +84,7 @@ test('Code Lab cancels infinite loops and discards stale highlights', async ({
   await expect(page.locator('.code-error-line')).toHaveCount(0);
   await page.getByRole('button', { name: 'Explore', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'Bubble sort', level: 1 }),
+    page.getByRole('button', { name: 'About Bubble sort' }),
   ).toBeVisible();
 });
 
@@ -106,15 +106,16 @@ test('recursion, alternate array styles and node map navigation', async ({
     .click();
   await focusNode(page, 'Visualization');
   await page.getByRole('button', { name: 'Next step', exact: true }).click();
-  await expect(page.getByRole('button', { name: /hanoi\(3/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^hanoi\(3.*active$/ })).toBeVisible();
   await focusNode(page, 'Algorithms');
   await page.getByRole('button', { name: 'Merge sort', exact: true }).click();
   await focusNode(page, 'Visualization');
-  await page
-    .getByRole('combobox', { name: 'Visualization style' })
-    .selectOption('circles');
+  await page.getByRole('button', { name: 'Circles view' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Circles view' }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await focusNode(page, 'Execution map');
-  await expect(page.getByRole('tab', { name: 'Steps' })).toBeVisible();
+  await expect(page.getByText('No steps done yet.')).toBeVisible();
 });
 
 test('the map pans, zooms, fits and moves nodes', async ({
@@ -235,4 +236,25 @@ test('studio panel toggles, moves and adds connected instances', async ({
   await page.screenshot({
     path: `/tmp/instralize-${isMobile ? 'mobile' : 'desktop'}-lab.png`,
   });
+});
+
+test('recursion grows a tree and returns values to callers', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'Desktop screenshot only');
+  await page.goto('/');
+  await focusNode(page, 'Algorithms');
+  await page.getByRole('button', { name: 'Fibonacci', exact: true }).click();
+  await focusNode(page, 'Visualization');
+  for (let i = 0; i < 9; i++)
+    await page.getByRole('button', { name: 'Next step', exact: true }).click();
+  await expect(page.locator('.call-result').first()).toBeVisible();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: '/tmp/instralize-recursion.png' });
+  await page.getByRole('button', { name: 'Fit view' }).click();
+  await page.waitForTimeout(600);
+  await page.getByRole('button', { name: 'About Fibonacci' }).hover();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: '/tmp/instralize-overview.png' });
 });

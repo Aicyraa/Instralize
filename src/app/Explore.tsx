@@ -12,12 +12,21 @@ import {
   createPlayback,
   playbackGroupReducer,
 } from '../features/playback/model';
-import type { Action, Playback } from '../features/playback/model';
+import type { Action } from '../features/playback/model';
 import { PlaybackControls } from '../features/playback/PlaybackControls';
 import { PlaybackTicker } from '../features/playback/PlaybackTicker';
 import { ArrayView } from '../features/visualizations/ArrayView';
 import type { ElementStyle } from '../features/visualizations/ArrayView';
 import { RecursionView } from '../features/visualizations/RecursionView';
+import {
+  InfoTooltip,
+  Legend,
+  VisualizationStage,
+} from '../features/visualizations/Stage';
+import {
+  arrayLegend,
+  recursionLegend,
+} from '../features/visualizations/legends';
 import { Inspector } from '../features/visualizations/Inspector';
 import { Canvas } from '../shared/Canvas';
 import type { FlowEdge, FlowNode } from '../shared/Canvas';
@@ -64,15 +73,6 @@ function trace(algorithm: Algorithm, text: string, targetText: string) {
       : undefined;
   return algorithm.run(values, target);
 }
-
-const playbackStatus = (p: Playback) =>
-  p.playing
-    ? 'Running'
-    : p.index === p.frames.length - 1 && p.index > 0
-      ? 'Complete'
-      : p.index > 0
-        ? 'Paused'
-        : 'Ready';
 
 const initialGraph: GraphNode[] = [
   { id: 'algorithm-1', kind: 'algorithm', n: 1, source: null },
@@ -331,7 +331,8 @@ export function Explore({
                     onClick={() => chooseAlgorithm(node.id, a)}
                     aria-current={selected === a.id ? 'true' : undefined}
                   >
-                    <span>{a.name}</span>
+                    <span className="algo-radio" aria-hidden="true" />
+                    <span className="algo-name">{a.name}</span>
                     <span className="algorithm-cost mono">{a.time}</span>
                   </button>
                 ))}
@@ -459,74 +460,51 @@ export function Explore({
     );
     if (!algorithm || !p || !frame)
       return (
-        <div className="visualization-empty">
-          <div className="node-toolbar">{source}</div>
-          <Disconnected>
-            Connect an Input node to visualize its trace.
-          </Disconnected>
-        </div>
+        <VisualizationStage source={source}>
+          <Disconnected>Connect an Input node.</Disconnected>
+        </VisualizationStage>
       );
-    const status = playbackStatus(p);
-    const style = styles[node.id] ?? 'bars';
+    const style = styles[node.id] ?? 'array';
     const dispatch: Dispatch<Action> = (action) =>
       dispatchGroup({ type: 'to', id: node.id, action });
-    const Heading = node.n === 1 ? 'h1' : 'h3';
+    const recursive = algorithm.category === 'Recursion';
     return (
-      <>
-        <div className="node-toolbar">{source}</div>
-        <div className="workspace-heading">
-          <span className="eyebrow">{algorithm.category}</span>
-          <Heading className="visual-title">{algorithm.name}</Heading>
-          <p>{algorithm.summary}</p>
-          <div className="complexity mono">
-            <span>Time {algorithm.time}</span>
-            <span>Space {algorithm.space}</span>
-          </div>
-        </div>
-        <section className="visualization-panel">
-          <div className="visualization-toolbar">
-            <span className={`status ${status.toLowerCase()}`}>{status}</span>
-            {algorithm.category !== 'Recursion' && (
-              <label className="view-select">
-                View
-                <select
-                  aria-label="Visualization style"
-                  value={style}
-                  onChange={(e) =>
-                    setStyles((s) => ({
-                      ...s,
-                      [node.id]: e.target.value as ElementStyle,
-                    }))
-                  }
-                >
-                  {['bars', 'circles', 'squares', 'array'].map((s) => (
-                    <option value={s} key={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <span className="mono muted step-count">
-              Step {p.index} / {Math.max(0, p.frames.length - 1)}
-            </span>
-          </div>
-          {algorithm.category === 'Recursion' ? (
-            <RecursionView key={algorithm.id} frame={frame} />
-          ) : (
-            <ArrayView frame={frame} style={style} speed={p.speed} />
-          )}
-          <div className="current-explanation" aria-live="polite">
-            <span className={`operation ${frame.operation}`}>
-              {frame.operation}
-            </span>
-            <p key={p.index}>{frame.description}</p>
-          </div>
-          <PlaybackControls state={p} dispatch={dispatch} />
-        </section>
-      </>
+      <VisualizationStage
+        source={source}
+        style={style}
+        onStyleChange={
+          recursive
+            ? undefined
+            : (next) => setStyles((s) => ({ ...s, [node.id]: next }))
+        }
+        playback={<PlaybackControls state={p} dispatch={dispatch} />}
+      >
+        {recursive ? (
+          <RecursionView
+            key={algorithm.id}
+            frame={frame}
+            previous={p.index > 0 ? p.frames[p.index - 1] : undefined}
+          />
+        ) : (
+          <ArrayView frame={frame} style={style} speed={p.speed} />
+        )}
+      </VisualizationStage>
     );
   };
+  const algorithmInfo = (algorithm: Algorithm) => (
+    <>
+      <strong>{algorithm.name}</strong>
+      <span>{algorithm.summary}</span>
+      <span className="mono tooltip-meta">
+        time {algorithm.time} · space {algorithm.space}
+      </span>
+      <Legend
+        items={
+          algorithm.category === 'Recursion' ? recursionLegend : arrayLegend
+        }
+      />
+    </>
+  );
 
   const renderInspector = (node: GraphNode, title: string) => {
     const viz = nodeById(node.source);
@@ -557,7 +535,6 @@ export function Explore({
           frame={frame}
           frames={p.frames}
           index={p.index}
-          algorithm={algorithmForInput(viz.source)}
           onSeek={(index) =>
             dispatchGroup({
               type: 'to',
@@ -590,6 +567,7 @@ export function Explore({
     if (node.kind === 'algorithm')
       return {
         ...base,
+        input: false,
         subtitle: findAlgorithm(algos[node.id]).name,
         children: renderAlgorithm(node, title),
       };
@@ -608,21 +586,28 @@ export function Explore({
     }
     if (node.kind === 'visualization') {
       const p = playbacks[node.id];
-      const status = p ? playbackStatus(p) : 'Ready';
+      const algorithm = algorithmForInput(node.source);
+      const input = nodeById(node.source);
       return {
         ...base,
-        subtitle: algorithmForInput(node.source)?.name ?? 'Not connected',
+        subtitle: input ? `from ${instanceTitle(input.kind, input.n)}` : 'Not connected',
         status: p?.playing
           ? 'running'
-          : status === 'Complete'
+          : p && p.index > 0 && p.index === p.frames.length - 1
             ? 'success'
             : 'idle',
+        actions: algorithm && (
+          <InfoTooltip label={`About ${algorithm.name}`}>
+            {algorithmInfo(algorithm)}
+          </InfoTooltip>
+        ),
         children: renderVisualization(node, title),
       };
     }
     const viz = nodeById(node.source);
     return {
       ...base,
+      output: false,
       subtitle: viz
         ? `Following ${instanceTitle(viz.kind, viz.n)}`
         : 'Not connected',
@@ -672,7 +657,6 @@ export function Explore({
           ['algorithm', 'input', 'visualization', 'inspector'] as NodeKind[]
         ).map((kind) => ({ kind, count: countOf(kind), onAdd: () => add(kind) }))}
         onPipeline={addPipeline}
-        note="New nodes connect to the most recent upstream node. Use each node’s source menu to rewire it."
       />
     </>
   );

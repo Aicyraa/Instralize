@@ -3,7 +3,7 @@ import type { Frame } from '../algorithms/types';
 export type ElementStyle = 'bars' | 'circles' | 'squares' | 'array';
 export function ArrayView({
   frame,
-  style = 'bars',
+  style = 'array',
   speed = 1,
 }: {
   frame: Frame;
@@ -44,8 +44,8 @@ export function ArrayView({
             <motion.div
               layout={reduced ? false : 'position'}
               transition={{
-                duration: reduced ? 0 : Math.min(0.35, 0.42 / speed),
-                ease: 'easeInOut',
+                duration: reduced ? 0 : Math.min(0.42, 0.48 / speed),
+                ease: [0.45, 0, 0.2, 1],
               }}
               key={unique ? item.id : `slot-${i}`}
               role="listitem"
@@ -75,20 +75,6 @@ export function ArrayView({
             </motion.div>
           );
         })}
-      </div>
-      <div className="legend">
-        <span>
-          <i className="dot compare" />
-          Comparing
-        </span>
-        <span>
-          <i className="dot active" />
-          Moving / writing
-        </span>
-        <span>
-          <i className="dot complete" />
-          Final / found
-        </span>
       </div>
       {frame.buffer && (
         <div className="buffer">

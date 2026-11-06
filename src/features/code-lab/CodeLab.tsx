@@ -13,6 +13,12 @@ import { PlaybackControls } from '../playback/PlaybackControls';
 import { ArrayView } from '../visualizations/ArrayView';
 import type { ElementStyle } from '../visualizations/ArrayView';
 import { Inspector } from '../visualizations/Inspector';
+import {
+  InfoTooltip,
+  Legend,
+  VisualizationStage,
+} from '../visualizations/Stage';
+import { arrayLegend } from '../visualizations/legends';
 import { Canvas } from '../../shared/Canvas';
 import type { FlowEdge, FlowNode } from '../../shared/Canvas';
 import { Icon } from '../../shared/Icon';
@@ -52,7 +58,7 @@ export default function CodeLab({
 }) {
   // Extra views and maps mirror the single run with their own presentation.
   const [views, setViews] = useState<ViewInstance[]>([
-    { id: 'visualization-1', n: 1, style: 'bars' },
+    { id: 'visualization-1', n: 1, style: 'array' },
   ]);
   const [maps, setMaps] = useState<MapInstance[]>([
     { id: 'inspector-1', n: 1, source: 'visualization-1' },
@@ -216,6 +222,7 @@ export default function CodeLab({
       title: 'Code editor',
       subtitle: 'JavaScript · function sort(arr)',
       kind: 'code',
+      input: false,
       icon: <Icon name="code" />,
       x: 0,
       y: 0,
@@ -372,8 +379,7 @@ export default function CodeLab({
         id: view.id,
         kind: 'visualization',
         title,
-        subtitle:
-          view.n === 1 ? 'Your algorithm, in motion' : `Mirrors the run · ${view.style}`,
+        subtitle: 'from Run',
         icon: <Icon name="visualization" />,
         ...(view.id === 'visualization-1' ? { x: 1220, y: 0 } : {}),
         anchor: 'run',
@@ -384,49 +390,28 @@ export default function CodeLab({
           liveViews.length > 1 && !leaving.includes(view.id)
             ? () => remove(view.id)
             : undefined,
+        actions: (
+          <InfoTooltip label="About this view">
+            <strong>Your sort(arr)</strong>
+            <span>
+              Each recorded step of your code, replayed on the input array.
+              The editor highlights the line that produced it.
+            </span>
+            <Legend items={arrayLegend} />
+          </InfoTooltip>
+        ),
         children: (
-          <div className="visualization-panel lab-visualization">
-            <div className="visualization-toolbar">
-              <span
-                className={`status ${state.pending ? 'running' : state.playing ? 'running' : ''}`}
-              >
-                {state.pending ? 'Tracing' : state.playing ? 'Running' : 'Ready'}
-              </span>
-              <label className="view-select">
-                View
-                <select
-                  aria-label="Visualization style"
-                  value={view.style}
-                  onChange={(e) =>
-                    setViews((v) =>
-                      v.map((item) =>
-                        item.id === view.id
-                          ? { ...item, style: e.target.value as ElementStyle }
-                          : item,
-                      ),
-                    )
-                  }
-                >
-                  {['bars', 'circles', 'squares', 'array'].map((s) => (
-                    <option value={s} key={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <span className="mono muted step-count">
-                Step {state.index} / {Math.max(0, state.frames.length - 1)}
-              </span>
-            </div>
+          <VisualizationStage
+            style={view.style}
+            onStyleChange={(style) =>
+              setViews((v) =>
+                v.map((item) => (item.id === view.id ? { ...item, style } : item)),
+              )
+            }
+            playback={<PlaybackControls state={state} dispatch={dispatch} />}
+          >
             <ArrayView frame={shownFrame} style={view.style} speed={state.speed} />
-            <div className="current-explanation">
-              <span className={`operation ${shownFrame.operation}`}>
-                {shownFrame.operation}
-              </span>
-              <p key={state.index}>{shownFrame.description}</p>
-            </div>
-            <PlaybackControls state={state} dispatch={dispatch} />
-          </div>
+          </VisualizationStage>
         ),
       };
     }),
@@ -441,6 +426,7 @@ export default function CodeLab({
           ? `Following ${instanceTitle('visualization', source.n)}`
           : 'Not connected',
         icon: <Icon name="map" />,
+        output: false,
         ...(map.id === 'inspector-1' ? { x: 1980, y: 0 } : {}),
         anchor: map.source ?? undefined,
         width: 340,
@@ -522,7 +508,7 @@ export default function CodeLab({
           },
           { kind: 'inspector', count: liveMaps.length, onAdd: addMap },
         ]}
-        note="Code Lab has one editor and run. Extra views mirror that run, so you can compare styles side by side."
+        note="Extra views replay the same run."
       />
     </>
   );

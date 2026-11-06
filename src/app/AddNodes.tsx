@@ -19,19 +19,14 @@ export function AddNodes({
   target?: HTMLElement | null;
   items: AddItem[];
   onPipeline?: () => void;
-  note: string;
+  note?: string;
 }) {
   if (!target) return null;
   return createPortal(
     <section className="panel-section" aria-labelledby="panel-add-heading">
-      <div className="panel-section-head">
-        <h3 className="panel-label" id="panel-add-heading">
-          Add to canvas
-        </h3>
-        <span className="panel-meta mono">
-          {items.reduce((total, item) => total + item.count, 0)} nodes
-        </span>
-      </div>
+      <h3 className="panel-label" id="panel-add-heading">
+        Add node
+      </h3>
       <div className="add-grid">
         {items.map(({ kind, count, onAdd }) => (
           <button
@@ -41,13 +36,8 @@ export function AddNodes({
             onClick={onAdd}
             aria-label={`Add ${nodeKinds[kind].title}`}
           >
-            <span className="add-tile-icon">
-              <Icon name={nodeKinds[kind].icon} />
-            </span>
-            <span className="add-tile-text">
-              <strong>{nodeKinds[kind].title}</strong>
-              <span>{nodeKinds[kind].hint}</span>
-            </span>
+            <Icon name={nodeKinds[kind].icon} />
+            <span className="add-tile-text">{nodeKinds[kind].title}</span>
             <span className="add-tile-count mono" aria-hidden="true">
               {count}
             </span>
@@ -60,7 +50,7 @@ export function AddNodes({
           New connected pipeline
         </button>
       )}
-      <p className="panel-note">{note}</p>
+      {note && <p className="panel-note">{note}</p>}
     </section>,
     target,
   );

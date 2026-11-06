@@ -24,7 +24,12 @@ export type IconName =
   | 'check'
   | 'shuffle'
   | 'link'
-  | 'sort';
+  | 'sort'
+  | 'info'
+  | 'styleBars'
+  | 'styleCircles'
+  | 'styleSquares'
+  | 'styleArray';
 
 const paths: Record<IconName, ReactNode> = {
   algorithms: <path d="M4 6h11M4 12h16M4 18h8" />,
@@ -92,6 +97,26 @@ const paths: Record<IconName, ReactNode> = {
     <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />
   ),
   sort: <path d="M7 5v14M4 16l3 3 3-3M14 7h6M14 12h4.5M14 17h3" />,
+  info: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5.5M12 7.6v.1" />
+    </>
+  ),
+  styleBars: <path d="M6 19v-6M10 19V8M14 19v-9M18 19V5" />,
+  styleCircles: (
+    <>
+      <circle cx="7" cy="12" r="3" />
+      <circle cx="17" cy="12" r="3" />
+    </>
+  ),
+  styleSquares: (
+    <>
+      <rect x="3.5" y="8.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="8.5" width="7" height="7" rx="1.8" />
+    </>
+  ),
+  styleArray: <path d="M3.5 8.5h17v7h-17zM9.2 8.5v7M14.8 8.5v7" />,
 };
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {

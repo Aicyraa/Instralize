@@ -34,13 +34,12 @@ function readStored(): Stored {
   return { ...DEFAULT_POSITION, open: false };
 }
 
-const settingRows: { key: keyof CanvasSettings; label: string; hint: string }[] =
-  [
-    { key: 'minimap', label: 'Minimap', hint: 'Overview in the corner' },
-    { key: 'grid', label: 'Dot grid', hint: 'Background guides' },
-    { key: 'snap', label: 'Snap to grid', hint: 'Align nodes on release' },
-    { key: 'animateEdges', label: 'Animated links', hint: 'Flow while running' },
-  ];
+const settingRows: { key: keyof CanvasSettings; label: string }[] = [
+  { key: 'minimap', label: 'Minimap' },
+  { key: 'grid', label: 'Dot grid' },
+  { key: 'snap', label: 'Snap to grid' },
+  { key: 'animateEdges', label: 'Animate running links' },
+];
 
 export function StudioPanel({
   workspace,
@@ -164,7 +163,7 @@ export function StudioPanel({
                   transition={
                     reduced
                       ? { duration: 0 }
-                      : { type: 'spring', stiffness: 520, damping: 38 }
+                      : { duration: 0.22, ease: [0.4, 0, 0.2, 1] }
                   }
                 />
               )}
@@ -192,8 +191,8 @@ export function StudioPanel({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{
-              duration: reduced ? 0 : 0.28,
-              ease: [0.22, 1, 0.36, 1],
+              duration: reduced ? 0 : 0.24,
+              ease: [0.4, 0, 0.2, 1],
             }}
           >
             <div className="studio-scroll">
@@ -206,7 +205,7 @@ export function StudioPanel({
                   Canvas
                 </h3>
                 <div className="settings-list">
-                  {settingRows.map(({ key, label, hint }) => (
+                  {settingRows.map(({ key, label }) => (
                     <button
                       key={key}
                       role="switch"
@@ -216,10 +215,7 @@ export function StudioPanel({
                         onSettingsChange({ ...settings, [key]: !settings[key] })
                       }
                     >
-                      <span className="setting-text">
-                        <strong>{label}</strong>
-                        <span>{hint}</span>
-                      </span>
+                      <span className="setting-text">{label}</span>
                       <span className="switch" aria-hidden="true">
                         <span />
                       </span>
@@ -227,17 +223,6 @@ export function StudioPanel({
                   ))}
                 </div>
               </section>
-              <footer className="studio-hints">
-                <span>
-                  <kbd>Drag</kbd> pan
-                </span>
-                <span>
-                  <kbd>Ctrl</kbd>+<kbd>Scroll</kbd> zoom
-                </span>
-                <span>
-                  <kbd>0</kbd> fit
-                </span>
-              </footer>
             </div>
           </motion.div>
         )}

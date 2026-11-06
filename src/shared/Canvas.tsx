@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -24,6 +31,11 @@ export interface FlowNode {
   status?: NodeStatus;
   leaving?: boolean;
   onRemove?: () => void;
+  /** Show connection ports; both default to true. */
+  input?: boolean;
+  output?: boolean;
+  /** Extra header controls, such as an info tooltip. */
+  actions?: ReactNode;
   children: ReactNode;
 }
 export interface FlowEdge {
@@ -371,7 +383,7 @@ export function Canvas({
       el.setPointerCapture(event.pointerId);
       return;
     }
-    if (inNode && handle && !target.closest('button')) {
+    if (inNode && handle && !target.closest('button, select, input, [role="tooltip"]')) {
       gesture.current = {
         kind: 'node',
         id: inNode.dataset.nodeId!,
@@ -479,6 +491,7 @@ export function Canvas({
   const byId = new Map(placed.map((p) => [p.node.id, p]));
   const selected = [...order].reverse().find((id) => byId.has(id));
   const z = view?.z ?? 1;
+  const markerId = useId().replace(/:/g, '');
   const mini = settings.minimap ? minimap(placed, sizes, view, box) : null;
   const classes = [
     'flow-viewport',
@@ -516,31 +529,50 @@ export function Canvas({
         }}
       >
         <svg className="flow-edges" aria-hidden="true">
+          <defs>
+            {(['idle', 'linked', 'active'] as const).map((state) => (
+              <marker
+                key={state}
+                id={`${markerId}-${state}`}
+                viewBox="0 0 12 12"
+                refX="10"
+                refY="6"
+                markerWidth="12"
+                markerHeight="12"
+                markerUnits="userSpaceOnUse"
+                orient="auto"
+              >
+                <path d="M1 1.5 10.5 6 1 10.5Z" className={`flow-arrow ${state}`} />
+              </marker>
+            ))}
+          </defs>
           {edges.map((edge) => {
             const a = byId.get(edge.from);
             const b = byId.get(edge.to);
             const sa = sizes[edge.from];
             if (!a || !b || !sa) return null;
-            const x1 = a.x + sa.w;
+            // n8n-style: leave the output circle, end on the input bar with an arrowhead.
+            const x1 = a.x + sa.w + 6;
             const y1 = a.y + PORT_Y;
-            const x2 = b.x;
+            const x2 = b.x - 7;
             const y2 = b.y + PORT_Y;
-            const c = Math.max(60, Math.abs(x2 - x1) * 0.5);
+            const dx = x2 - x1;
+            const c = dx > 0 ? Math.max(40, dx * 0.5) : 120 + Math.abs(dx) * 0.25;
+            const d = `M${x1} ${y1} C${x1 + c} ${y1},${x2 - c} ${y2},${x2} ${y2}`;
             const linked = edge.from === selected || edge.to === selected;
             const leaving = a.node.leaving || b.node.leaving;
+            const state = edge.active ? 'active' : linked ? 'linked' : 'idle';
             return (
               <g
                 key={edge.id}
-                className={`flow-edge-group${edge.active ? ' active' : ''}${linked ? ' linked' : ''}${leaving ? ' leaving' : ''}`}
+                className={`flow-edge-group ${state}${leaving ? ' leaving' : ''}`}
               >
                 <path
                   className="flow-edge"
-                  d={`M${x1} ${y1} C${x1 + c} ${y1},${x2 - c} ${y2},${x2} ${y2}`}
+                  d={d}
+                  markerEnd={`url(#${markerId}-${state})`}
                 />
-                <path
-                  className="flow-edge-flow"
-                  d={`M${x1} ${y1} C${x1 + c} ${y1},${x2 - c} ${y2},${x2} ${y2}`}
-                />
+                {edge.active && <path className="flow-edge-flow" d={d} />}
               </g>
             );
           })}
@@ -760,6 +792,7 @@ function NodeView({
           {node.subtitle && <span className="muted">{node.subtitle}</span>}
         </div>
         <span className="flow-node-status" aria-hidden="true" />
+        {node.actions}
         <button
           className="flow-node-action"
           aria-label={`Focus ${node.title}`}
@@ -779,8 +812,12 @@ function NodeView({
           </button>
         )}
       </header>
-      <span className="flow-port in" aria-hidden="true" />
-      <span className="flow-port out" aria-hidden="true" />
+      {node.input !== false && (
+        <span className="flow-port in" aria-hidden="true" />
+      )}
+      {node.output !== false && (
+        <span className="flow-port out" aria-hidden="true" />
+      )}
       <div className="flow-node-body">{node.children}</div>
     </section>
   );
