@@ -67,3 +67,35 @@ it('keeps content interactive inside nodes', async () => {
   await user.click(screen.getByRole('button', { name: 'Go' }));
   expect(clicks).toBe(1);
 });
+it('moves connectors around the border and resizes nodes from the keyboard', async () => {
+  const user = userEvent.setup();
+  render(
+    <Canvas
+      label="Test map"
+      nodes={nodes}
+      edges={[{ id: 'e', from: 'a', to: 'b' }]}
+    />,
+  );
+  const output = screen.getByRole('button', {
+    name: /Output connector of Alpha, right side/,
+  });
+  output.focus();
+  await user.keyboard('{ArrowUp}');
+  expect(
+    screen.getByRole('button', { name: /Output connector of Alpha, top side/ }),
+  ).toBeTruthy();
+  await user.keyboard('{ArrowDown}');
+  expect(
+    screen.getByRole('button', {
+      name: /Output connector of Alpha, bottom side/,
+    }),
+  ).toBeTruthy();
+  const grip = screen.getByRole('button', { name: /Resize Beta/ });
+  grip.focus();
+  await user.keyboard('{ArrowDown}');
+  const node = grip.closest('.flow-node') as HTMLElement;
+  expect(node.style.height).toBe('140px');
+  expect(node.classList.contains('sized-h')).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Reset layout' }));
+  expect(node.style.height).toBe('');
+});

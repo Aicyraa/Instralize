@@ -31,3 +31,25 @@ it('load invalidates a run and streaming waits for more frames', () => {
   ).toBe(true);
   expect(playbackReducer(loaded, { type: 'complete' }).pending).toBe(false);
 });
+it('keeps grouped timelines independent', async () => {
+  const { playbackGroupReducer, createPlayback } = await import('./model');
+  const frames = [initialFrame([2, 1]), initialFrame([1, 2])];
+  let group = playbackGroupReducer({}, { type: 'add', id: 'a', frames });
+  group = playbackGroupReducer(group, { type: 'add', id: 'b', frames });
+  group = playbackGroupReducer(group, {
+    type: 'to',
+    id: 'a',
+    action: { type: 'seek', index: 1 },
+  });
+  expect(group.a.index).toBe(1);
+  expect(group.b).toEqual(createPlayback(frames));
+  group = playbackGroupReducer(group, {
+    type: 'each',
+    ids: ['a', 'b', 'missing'],
+    action: { type: 'speed', speed: 2 },
+  });
+  expect([group.a.speed, group.b.speed]).toEqual([2, 2]);
+  expect('missing' in group).toBe(false);
+  group = playbackGroupReducer(group, { type: 'remove', id: 'a' });
+  expect(Object.keys(group)).toEqual(['b']);
+});

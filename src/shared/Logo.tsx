@@ -1,0 +1,28 @@
+// Mirrors public/favicon.svg: three values in sorted order.
+export function Logo({ size = 28 }: { size?: number }) {
+  return (
+    <svg
+      className="logo-mark"
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect width="32" height="32" rx="7" fill="#18191c" />
+      <rect
+        x="0.5"
+        y="0.5"
+        width="31"
+        height="31"
+        rx="6.5"
+        stroke="#ffffff"
+        strokeOpacity="0.08"
+      />
+      <rect x="8" y="8.5" width="7" height="4" rx="1.2" fill="#5b5e65" />
+      <rect x="8" y="14" width="11.5" height="4" rx="1.2" fill="#9a9ca3" />
+      <rect x="8" y="19.5" width="16" height="4" rx="1.2" fill="#4fb47e" />
+    </svg>
+  );
+}

@@ -11,7 +11,7 @@ test('explore validates, searches and replays on desktop and mobile', async ({
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
   await expect(
-    page.getByRole('heading', { name: 'Bubble sort', level: 1 }),
+    page.getByRole('button', { name: 'About Bubble sort' }),
   ).toBeVisible();
   await focusNode(page, 'Algorithms');
   await page
@@ -84,7 +84,7 @@ test('Code Lab cancels infinite loops and discards stale highlights', async ({
   await expect(page.locator('.code-error-line')).toHaveCount(0);
   await page.getByRole('button', { name: 'Explore', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'Bubble sort', level: 1 }),
+    page.getByRole('button', { name: 'About Bubble sort' }),
   ).toBeVisible();
 });
 
@@ -106,15 +106,16 @@ test('recursion, alternate array styles and node map navigation', async ({
     .click();
   await focusNode(page, 'Visualization');
   await page.getByRole('button', { name: 'Next step', exact: true }).click();
-  await expect(page.getByRole('button', { name: /hanoi\(3/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^hanoi\(3.*active$/ })).toBeVisible();
   await focusNode(page, 'Algorithms');
   await page.getByRole('button', { name: 'Merge sort', exact: true }).click();
   await focusNode(page, 'Visualization');
-  await page
-    .getByRole('combobox', { name: 'Visualization style' })
-    .selectOption('circles');
-  await focusNode(page, 'Execution inspector');
-  await expect(page.getByRole('tab', { name: 'Steps' })).toBeVisible();
+  await page.getByRole('button', { name: 'Circles view' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Circles view' }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await focusNode(page, 'Execution map');
+  await expect(page.getByText('No steps done yet.')).toBeVisible();
 });
 
 test('the map pans, zooms, fits and moves nodes', async ({
@@ -138,7 +139,7 @@ test('the map pans, zooms, fits and moves nodes', async ({
   if (isMobile) return;
   const header = page
     .locator('.flow-node-header')
-    .filter({ hasText: 'Execution inspector' });
+    .filter({ hasText: 'Execution map' });
   const start = (await header.boundingBox())!;
   await page.mouse.move(start.x + 100, start.y + 20);
   await page.mouse.down();
@@ -183,4 +184,161 @@ test('Stop terminates a pending worker and draft edits cancel old runs', async (
     path: '/tmp/instralize-code-lab.png',
     fullPage: true,
   });
+});
+
+test('studio panel toggles, moves and adds connected instances', async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto('/');
+  const panel = page.getByRole('complementary', { name: 'Studio' });
+  const toggle = page.getByRole('button', { name: 'Workspace settings' });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await page.screenshot({
+    path: `/tmp/instralize-${isMobile ? 'mobile' : 'desktop'}-closed.png`,
+  });
+  await toggle.click();
+  await expect(
+    page.getByRole('button', { name: 'Add Visualization' }),
+  ).toBeVisible();
+  await page.getByRole('switch', { name: /Minimap/ }).click();
+  await expect(page.locator('.flow-minimap')).toHaveCount(0);
+  await page.getByRole('switch', { name: /Minimap/ }).click();
+  await page.getByRole('button', { name: 'New connected pipeline' }).click();
+  await expect(page.getByRole('heading', { name: 'Visualization 2' })).toBeVisible();
+  await expect(page.locator('.flow-edge-group')).toHaveCount(6);
+  await page.waitForTimeout(700);
+  await page.screenshot({
+    path: `/tmp/instralize-${isMobile ? 'mobile' : 'desktop'}-open.png`,
+  });
+  if (!isMobile) {
+    const handle = page.getByRole('button', { name: 'Move studio panel' });
+    const start = (await panel.boundingBox())!;
+    const box = (await handle.boundingBox())!;
+    await page.mouse.move(box.x + 10, box.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 310, box.y + 210, { steps: 6 });
+    await page.mouse.up();
+    const end = (await panel.boundingBox())!;
+    expect(end.x).toBeGreaterThan(start.x + 250);
+    expect(end.y).toBeGreaterThan(start.y + 150);
+  }
+  await page.getByRole('button', { name: 'Code Lab', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Add Execution map' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Add Algorithms' }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add Visualization' }).click();
+  await expect(page.getByRole('heading', { name: 'Visualization 2' })).toBeVisible();
+  await page.waitForTimeout(700);
+  await page.screenshot({
+    path: `/tmp/instralize-${isMobile ? 'mobile' : 'desktop'}-lab.png`,
+  });
+});
+
+test('recursion grows a tree and returns values to callers', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'Desktop screenshot only');
+  await page.goto('/');
+  await focusNode(page, 'Algorithms');
+  await page.getByRole('button', { name: 'Fibonacci', exact: true }).click();
+  await focusNode(page, 'Visualization');
+  for (let i = 0; i < 9; i++)
+    await page.getByRole('button', { name: 'Next step', exact: true }).click();
+  await expect(page.locator('.call-result').first()).toBeVisible();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: '/tmp/instralize-recursion.png' });
+  await page.getByRole('button', { name: 'Fit view' }).click();
+  await page.waitForTimeout(600);
+  await page.getByRole('button', { name: 'About Fibonacci' }).hover();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: '/tmp/instralize-overview.png' });
+});
+
+test('connectors move around nodes and nodes resize', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'Pointer dragging is covered on desktop');
+  await page.goto('/');
+  await focusNode(page, 'Input');
+  await page.waitForTimeout(600);
+  const node = page.locator('.flow-node').filter({
+    has: page.getByRole('heading', { name: 'Input', exact: true }),
+  });
+  const port = node.locator('[data-port="out"]');
+  const box = (await node.boundingBox())!;
+  const start = (await port.boundingBox())!;
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height + 30, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  await expect(port).toHaveClass(/side-bottom/);
+  const grip = node.locator('[data-resize="xy"]');
+  await node.hover();
+  const g = (await grip.boundingBox())!;
+  await page.mouse.move(g.x + 8, g.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(g.x + 128, g.y + 88, { steps: 8 });
+  await page.mouse.up();
+  const resized = (await node.boundingBox())!;
+  expect(resized.width).toBeGreaterThan(box.width + 60);
+  expect(resized.height).toBeGreaterThan(box.height + 40);
+  await page.screenshot({ path: '/tmp/instralize-ports.png' });
+});
+
+test('output connector starts centered and visualizations grow with content', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'Layout measurement on desktop');
+  await page.goto('/');
+  const viz = page.locator('.flow-node').filter({
+    has: page.getByRole('heading', { name: 'Visualization', exact: true }),
+  });
+  const port = viz.locator('[data-port="out"]');
+  await expect
+    .poll(async () => {
+      const node = (await viz.boundingBox())!;
+      const box = (await port.boundingBox())!;
+      return Math.abs(box.y + box.height / 2 - (node.y + node.height / 2));
+    })
+    .toBeLessThan(3);
+  const nodeBox = (await viz.boundingBox())!;
+  const portBox = (await port.boundingBox())!;
+  expect(portBox.x).toBeGreaterThan(nodeBox.x + nodeBox.width - 10);
+
+  const before = await viz.evaluate((el) => el.offsetWidth);
+  await focusNode(page, 'Input');
+  const values = Array.from({ length: 40 }, (_, i) => (i * 37) % 97).join(', ');
+  await page.getByRole('textbox', { name: 'Array values' }).fill(values);
+  await page.getByRole('button', { name: 'Apply input' }).click();
+  await expect
+    .poll(() => viz.evaluate((el) => el.offsetWidth))
+    .toBeGreaterThan(before + 400);
+  const map = page.locator('.flow-node').filter({
+    has: page.getByRole('heading', { name: 'Execution map', exact: true }),
+  });
+  await expect
+    .poll(async () => {
+      const a = (await viz.boundingBox())!;
+      const b = (await map.boundingBox())!;
+      return b.x - (a.x + a.width);
+    })
+    .toBeGreaterThan(0);
+  const scrollers = await viz.evaluate((root) =>
+    [root, ...root.querySelectorAll<HTMLElement>('*')].filter(
+      (el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible',
+    ).length,
+  );
+  expect(scrollers).toBe(0);
+  await page.getByRole('button', { name: 'Fit view' }).click();
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: '/tmp/instralize-wide.png' });
 });

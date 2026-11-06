@@ -1,152 +1,92 @@
-import { useState } from 'react';
-import type { Algorithm, Frame } from '../algorithms/types';
+import { useEffect, useRef } from 'react';
+import type { Frame } from '../algorithms/types';
+import { Icon } from '../../shared/Icon';
+
+const LOG_LIMIT = 300;
+
+/** Execution map: a log of the steps that have already run. */
 export function Inspector({
   frame,
   frames,
   index,
-  algorithm,
   onSeek,
 }: {
   frame: Frame;
   frames: Frame[];
   index: number;
-  algorithm?: Algorithm;
   onSeek: (index: number) => void;
 }) {
-  const tabs = ['Explanation', 'Steps', 'Details'];
-  const [tab, setTab] = useState('Explanation');
+  const log = useRef<HTMLOListElement>(null);
+  const start = Math.max(1, index - LOG_LIMIT + 1);
+  const done = frames.slice(start, index + 1);
+  const finished = index > 0 && index === frames.length - 1;
+
+  // Follow the newest finished step, like a console.
+  useEffect(() => {
+    const el = log.current;
+    el?.scrollTo?.({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [index]);
+
   return (
-    <div className="inspector-content">
-      <div className="small-tabs" role="tablist" aria-label="Inspector">
-        {tabs.map((name) => (
-          <button
-            role="tab"
-            id={`inspector-${name}`}
-            aria-controls="inspector-panel"
-            aria-selected={tab === name}
-            tabIndex={tab === name ? 0 : -1}
-            onKeyDown={(event) => {
-              const index = tabs.indexOf(name);
-              const next =
-                event.key === 'ArrowRight'
-                  ? (index + 1) % tabs.length
-                  : event.key === 'ArrowLeft'
-                    ? (index + tabs.length - 1) % tabs.length
-                    : event.key === 'Home'
-                      ? 0
-                      : event.key === 'End'
-                        ? tabs.length - 1
-                        : -1;
-              if (next < 0) return;
-              event.preventDefault();
-              setTab(tabs[next]);
-              document.getElementById(`inspector-${tabs[next]}`)?.focus();
-            }}
-            key={name}
-            onClick={() => setTab(name)}
-          >
-            {name}
-          </button>
-        ))}
-      </div>
-      <div
-        role="tabpanel"
-        id="inspector-panel"
-        aria-labelledby={`inspector-${tab}`}
-      >
-        {tab === 'Explanation' ? (
-          <>
-            <span className={`operation ${frame.operation}`}>
-              {frame.operation}
-            </span>
-            <h3 className="step-description">{frame.description}</h3>
-            <p className="muted">
-              {frame.active.length
-                ? `Active indices: ${frame.active.join(', ')}`
-                : 'Follow the highlighted values as the algorithm progresses.'}
-            </p>
-            <div className="metrics">
-              <div>
-                <strong>{frame.comparisons}</strong>
-                <span>Comparisons</span>
-              </div>
-              <div>
-                <strong>{frame.writes}</strong>
-                <span>Writes / moves</span>
-              </div>
+    <div className="exec-map">
+      <dl className="exec-stats mono">
+        <div>
+          <dt>Done</dt>
+          <dd>
+            {index}
+            <span>/{Math.max(0, frames.length - 1)}</span>
+          </dd>
+        </div>
+        <div>
+          <dt>Compares</dt>
+          <dd>{frame.comparisons}</dd>
+        </div>
+        <div>
+          <dt>Writes</dt>
+          <dd>{frame.writes}</dd>
+        </div>
+      </dl>
+      {done.length ? (
+        <ol className="exec-log" ref={log} aria-label="Completed steps">
+          {done.map((step, i) => {
+            const position = start + i;
+            return (
+              <li key={position}>
+                <button
+                  aria-current={position === index ? 'step' : undefined}
+                  onClick={() => onSeek(position)}
+                >
+                  <Icon name="check" size={12} />
+                  <span className="mono exec-index">
+                    {String(position).padStart(3, '0')}
+                  </span>
+                  <span>{step.description}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="exec-empty">No steps done yet.</p>
+      )}
+      {finished && <p className="exec-finished mono">Finished</p>}
+      {frame.variables && (
+        <dl className="variables mono">
+          {Object.entries(frame.variables).map(([name, value]) => (
+            <div key={name}>
+              <dt>{name}</dt>
+              <dd>{value}</dd>
             </div>
-            {frame.variables && (
-              <>
-                <h3>Variables</h3>
-                <dl className="variables mono">
-                  {Object.entries(frame.variables).map(([name, value]) => (
-                    <div key={name}>
-                      <dt>{name}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </>
-            )}
-            {frame.stack && (
-              <>
-                <h3>Call stack</h3>
-                <ol className="stack mono">
-                  {frame.stack.map((call, i) => (
-                    <li key={i}>{call}</li>
-                  ))}
-                </ol>
-              </>
-            )}
-          </>
-        ) : tab === 'Steps' ? (
-          <ol className="step-list">
-            {frames
-              .slice(
-                Math.max(0, index - 40),
-                Math.min(frames.length, index + 41),
-              )
-              .map((step, i) => {
-                const position = Math.max(0, index - 40) + i;
-                return (
-                  <li key={position}>
-                    <button
-                      aria-current={position === index ? 'step' : undefined}
-                      onClick={() => onSeek(position)}
-                    >
-                      <span className="mono muted">
-                        {String(position).padStart(3, '0')}
-                      </span>
-                      <span>{step.description}</span>
-                    </button>
-                  </li>
-                );
-              })}
-          </ol>
-        ) : (
-          <>
-            <h3>{algorithm?.name ?? 'Your sorting algorithm'}</h3>
-            <p>
-              {algorithm?.summary ??
-                'Supported JavaScript executes in a bounded interpreter. Incorrect attempts remain playable for debugging.'}
-            </p>
-            <dl className="details-list">
-              <dt>Time</dt>
-              <dd>{algorithm?.time ?? 'Depends on your code'}</dd>
-              <dt>Auxiliary space</dt>
-              <dd>{algorithm?.space ?? 'Depends on your code'}</dd>
-              <dt>Input</dt>
-              <dd>
-                {algorithm?.limits ?? 'Numeric arrays; see supported syntax'}
-              </dd>
-            </dl>
-            <p className="muted">
-              Complexity describes the algorithm itself. Recording snapshots
-              adds visualization overhead.
-            </p>
-          </>
-        )}
-      </div>
+          ))}
+        </dl>
+      )}
+      {frame.stack && (
+        <ol className="stack mono" aria-label="Call stack">
+          {frame.stack.map((call, i) => (
+            <li key={i}>{call}</li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }

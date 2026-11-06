@@ -29,6 +29,12 @@ Enter 1–64 comma-separated integers between −999 and 999. Invalid tokens pro
 
 Play, pause, move backward or forward, seek on the timeline, replay, and change speed. The inspector explains operations, lists nearby steps, and shows metrics. Recursion cards show reached calls, evaluated base conditions, waiting states, and returned results; Hanoi also shows disk movements. Colors are paired with operation text. Reduced-motion preferences are respected.
 
+## Studio panel
+
+The floating studio panel switches between Explore and Code Lab. Drag its logo to move it (or focus the logo and use the arrow keys); double-click it to reset its position. The settings button opens workspace actions and canvas preferences (minimap, dot grid, snap to grid, animated links), which are remembered locally.
+
+Explore can add more Algorithms, Input, Visualization, and Execution map nodes, or a complete connected pipeline for side-by-side comparisons. Each visualization has its own timeline. Dependent nodes include a source menu for rewiring, and extra instances can be removed. In Code Lab, additional visualizations and execution maps mirror the same run, so you can compare display styles.
+
 ## Code Lab
 
 Start with bubble sort, recursive merge sort, or recursive quicksort. Draft code is saved locally when browser storage is available. **Reset example** replaces the draft with the selected starter.
