@@ -17,10 +17,6 @@ export function Inspector({
   const [tab, setTab] = useState('Explanation');
   return (
     <div className="inspector-content">
-      <div className="section-heading">
-        <span className="eyebrow">Understand the process</span>
-        <h2>Execution inspector</h2>
-      </div>
       <div className="small-tabs" role="tablist" aria-label="Inspector">
         {tabs.map((name) => (
           <button

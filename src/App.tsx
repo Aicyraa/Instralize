@@ -4,7 +4,7 @@ const CodeLab = lazy(() => import('./features/code-lab/CodeLab'));
 export default function App() {
   const [tab, setTab] = useState<'explore' | 'code'>('explore');
   return (
-    <>
+    <div className="app-shell">
       <header className="app-header">
         <a
           className="brand flex items-center gap-2.5"
@@ -30,15 +30,21 @@ export default function App() {
             Code Lab
           </button>
         </nav>
-        <span className="header-note">Interactive algorithm visualizer</span>
+        <span className="header-note">Drag to pan · Ctrl + scroll to zoom</span>
       </header>
       {tab === 'explore' ? (
         <Explore />
       ) : (
-        <Suspense fallback={<p className="empty-hint">Loading Code Lab…</p>}>
+        <Suspense
+          fallback={
+            <p className="empty-hint" role="status">
+              Loading Code Lab…
+            </p>
+          }
+        >
           <CodeLab />
         </Suspense>
       )}
-    </>
+    </div>
   );
 }

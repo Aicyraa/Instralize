@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+// Frames one node so its controls are on screen, like double-clicking it on the map.
+const focusNode = (page: Page, title: string) =>
+  page.getByRole('button', { name: `Focus ${title}` }).dispatchEvent('click');
+
 test('explore validates, searches and replays on desktop and mobile', async ({
   page,
-  isMobile,
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -9,13 +13,11 @@ test('explore validates, searches and replays on desktop and mobile', async ({
   await expect(
     page.getByRole('heading', { name: 'Bubble sort', level: 1 }),
   ).toBeVisible();
-  if (isMobile)
-    await page.getByRole('button', { name: 'Algorithms & input' }).click();
+  await focusNode(page, 'Algorithms');
   await page
     .getByRole('button', { name: 'Binary search', exact: true })
     .click();
-  if (isMobile)
-    await page.getByRole('button', { name: 'Algorithms & input' }).click();
+  await focusNode(page, 'Input');
   await page.getByRole('textbox', { name: 'Array values' }).fill('3, 1, 2');
   await page.getByRole('button', { name: 'Apply input' }).click();
   await expect(page.getByRole('alert')).toContainText('ascending');
@@ -23,10 +25,7 @@ test('explore validates, searches and replays on desktop and mobile', async ({
   await expect(page.getByRole('textbox', { name: 'Array values' })).toHaveValue(
     '1, 2, 3',
   );
-  if (isMobile)
-    await page
-      .getByRole('button', { name: 'Close Algorithms & input' })
-      .click();
+  await focusNode(page, 'Visualization');
   await page.getByRole('button', { name: 'Next step', exact: true }).click();
   await expect(
     page.getByRole('slider', { name: 'Playback position' }),
@@ -38,13 +37,16 @@ test('Code Lab runs code, highlights execution and debugs incorrect results', as
 }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Code Lab', exact: true }).click();
+  await focusNode(page, 'Run');
   await page.getByRole('button', { name: 'Run & play' }).click();
   await expect(page.getByRole('status')).toContainText(
     'Correct for this input',
   );
+  await focusNode(page, 'Visualization');
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('button', { name: 'Next step', exact: true }).click();
   await expect(page.locator('.code-execution-line').first()).toBeVisible();
+  await focusNode(page, 'Run');
   await page.getByRole('button', { name: 'Check examples' }).click();
   await expect(page.getByRole('status')).toContainText(
     'All 7 example checks passed',
@@ -52,15 +54,20 @@ test('Code Lab runs code, highlights execution and debugs incorrect results', as
   await page
     .getByRole('combobox', { name: 'Code example' })
     .selectOption('merge');
+  await focusNode(page, 'Run');
   await page.getByRole('button', { name: 'Run & play' }).click();
   await expect(page.getByRole('status')).toContainText(
     'Correct for this input',
   );
   const editor = page.getByRole('textbox', { name: 'Algorithm code editor' });
+  await focusNode(page, 'Code editor');
   await editor.fill('function sort(arr) { const n = arr.length; return arr; }');
+  await focusNode(page, 'Run');
   await page.getByRole('button', { name: 'Run & play' }).click();
   await expect(page.getByRole('status')).toContainText('Incorrect result');
+  await focusNode(page, 'Code editor');
   await editor.fill('function sort(arr) { arr.sort(); }');
+  await focusNode(page, 'Run');
   await page.getByRole('button', { name: 'Run & play' }).click();
   await expect(page.getByRole('status')).toContainText('unsupported');
 });
@@ -81,7 +88,7 @@ test('Code Lab cancels infinite loops and discards stale highlights', async ({
   ).toBeVisible();
 });
 
-test('recursion, alternate array styles and accessible drawers', async ({
+test('recursion, alternate array styles and node map navigation', async ({
   page,
   isMobile,
 }) => {
@@ -93,27 +100,56 @@ test('recursion, alternate array styles and accessible drawers', async ({
       : '/tmp/instralize-desktop.png',
     fullPage: true,
   });
-  if (isMobile)
-    await page.getByRole('button', { name: 'Algorithms & input' }).click();
+  await focusNode(page, 'Algorithms');
   await page
     .getByRole('button', { name: 'Tower of Hanoi', exact: true })
     .click();
+  await focusNode(page, 'Visualization');
   await page.getByRole('button', { name: 'Next step', exact: true }).click();
   await expect(page.getByRole('button', { name: /hanoi\(3/ })).toBeVisible();
-  if (isMobile)
-    await page.getByRole('button', { name: 'Algorithms & input' }).click();
+  await focusNode(page, 'Algorithms');
   await page.getByRole('button', { name: 'Merge sort', exact: true }).click();
-  if (!isMobile)
-    await page
-      .getByRole('combobox', { name: 'Visualization style' })
-      .selectOption('circles');
-  if (!isMobile) await page.setViewportSize({ width: 1100, height: 800 });
-  await page.getByRole('button', { name: 'Inspector', exact: true }).click();
-  await expect(
-    page.getByRole('dialog', { name: 'Execution inspector' }),
-  ).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await focusNode(page, 'Visualization');
+  await page
+    .getByRole('combobox', { name: 'Visualization style' })
+    .selectOption('circles');
+  await focusNode(page, 'Execution inspector');
+  await expect(page.getByRole('tab', { name: 'Steps' })).toBeVisible();
+});
+
+test('the map pans, zooms, fits and moves nodes', async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto('/');
+  const world = page.locator('.flow-world');
+  const zoom = page.locator('.flow-zoom');
+  await page.getByRole('button', { name: 'Fit view' }).click();
+  const fitted = await zoom.textContent();
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(zoom).not.toHaveText(fitted!);
+  await page.getByRole('button', { name: 'Fit view' }).click();
+  await expect(zoom).toHaveText(fitted!);
+  const canvas = page.getByRole('group', { name: 'Algorithm workspace map' });
+  await canvas.focus();
+  const before = await world.getAttribute('style');
+  await page.keyboard.press('ArrowRight');
+  expect(await world.getAttribute('style')).not.toBe(before);
+  if (isMobile) return;
+  const header = page
+    .locator('.flow-node-header')
+    .filter({ hasText: 'Execution inspector' });
+  const start = (await header.boundingBox())!;
+  await page.mouse.move(start.x + 100, start.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 100, start.y + 140, { steps: 5 });
+  await page.mouse.up();
+  const end = (await header.boundingBox())!;
+  expect(end.y).toBeGreaterThan(start.y + 100);
+  await page.getByRole('button', { name: 'Reset layout' }).click();
+  await expect
+    .poll(async () => (await header.boundingBox())!.y)
+    .toBeLessThan(end.y);
 });
 
 test('Stop terminates a pending worker and draft edits cancel old runs', async ({

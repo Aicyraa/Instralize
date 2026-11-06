@@ -3,11 +3,10 @@ import { afterEach, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Explore } from './Explore';
-HTMLDialogElement.prototype.showModal = function () {
-  this.setAttribute('open', '');
-};
-HTMLDialogElement.prototype.close = function () {
-  this.removeAttribute('open');
+globalThis.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
 };
 afterEach(cleanup);
 it('switches algorithms, rejects malformed inputs and seeks through valid traces', async () => {

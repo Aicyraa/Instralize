@@ -12,7 +12,8 @@ import { usePlayback } from '../playback/usePlayback';
 import { PlaybackControls } from '../playback/PlaybackControls';
 import { ArrayView } from '../visualizations/ArrayView';
 import { Inspector } from '../visualizations/Inspector';
-import { Drawer } from '../../shared/Drawer';
+import { Canvas } from '../../shared/Canvas';
+import type { FlowEdge, FlowNode } from '../../shared/Canvas';
 import { examples } from './examples';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 const CodeEditor = lazy(() => import('./CodeEditor'));
@@ -34,7 +35,6 @@ export default function CodeLab() {
   const [input, setInput] = useState(defaultInput);
   const [example, setExample] = useState<keyof typeof examples>('bubble');
   const [diagnostic, setDiagnostic] = useState<Diagnostic | null>(null);
-  const [inspecting, setInspecting] = useState(false);
   const worker = useRef<Worker | null>(null);
   const watchdog = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const runId = useRef(0);
@@ -146,161 +146,208 @@ export default function CodeLab() {
       onSeek={(index) => dispatch({ type: 'seek', index })}
     />
   );
-  return (
-    <div className="lab-workspace">
-      <main className="lab-main">
-        <header className="workspace-heading flex justify-between gap-4">
-          <div>
-            <span className="eyebrow">Code / Observe / Debug</span>
-            <h1>Your algorithm, in motion.</h1>
-            <p>
-              Write JavaScript. Follow each statement, value, and recursive
-              call.
-            </p>
-          </div>
-          <button
-            className="inspect-toggle"
-            onClick={() => setInspecting(true)}
-          >
-            Inspector
-          </button>
-        </header>
-        <div className="lab-split">
-          <section className="editor-panel">
-            <header className="editor-toolbar">
-              <label>
-                Example
-                <select
-                  aria-label="Code example"
-                  value={example}
-                  onChange={(e) => {
-                    const key = e.target.value as keyof typeof examples;
-                    setExample(key);
-                    changeSource(examples[key].code);
-                  }}
-                >
-                  {Object.entries(examples).map(([key, value]) => (
-                    <option key={key} value={key}>
-                      {value.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button onClick={() => changeSource(examples[example].code)}>
-                Reset example
-              </button>
-            </header>
-            <Suspense fallback={<p className="empty-hint">Loading editor…</p>}>
-              <CodeEditor
-                source={source}
-                onChange={changeSource}
-                line={shownFrame.source?.line}
-                errorLine={diagnostic?.line}
-              />
-            </Suspense>
-            <details className="syntax-guide" id="syntax-help">
-              <summary>Supported JavaScript & limits</summary>
-              <p>
-                Entry: <code>function sort(arr)</code>. Mutate arr or return a
-                numeric array. Use let/const, named helper functions, recursion,
-                numeric/boolean expressions, if/else, for/while/do loops,
-                break/continue, indexed reads/writes, and array-swap
-                destructuring.
-              </p>
-              <p>
-                Arrays: length, slice, push, pop. Math: floor, min, max.
-                Imports, objects, classes, async, browser APIs, and .sort() are
-                unsupported.
-              </p>
-              <p>
-                Limits: 20KB source · 100,000 operations · 10,000 frames · 64
-                calls · 256 cells per array · 8,192 cumulative allocated cells ·
-                3 seconds. Tab indents; Escape then Tab leaves the editor.
-              </p>
-              <p>
-                Supported but incorrect attempts remain playable. Unrelated code
-                that never inspects or modifies the input is rejected. Passing
-                examples does not prove correctness.
-              </p>
-            </details>
-          </section>
-          <section className="visualization-panel lab-visualization">
-            <div className="lab-input">
-              <label htmlFor="lab-values">Input array</label>
-              <textarea
-                id="lab-values"
-                rows={2}
-                value={input}
+  const running = state.pending;
+  const nodes: FlowNode[] = [
+    {
+      id: 'editor',
+      title: 'Code editor',
+      subtitle: 'JavaScript · function sort(arr)',
+      icon: '{ }',
+      x: 0,
+      y: 0,
+      width: 640,
+      status:
+        diagnostic?.kind === 'success'
+          ? 'success'
+          : diagnostic &&
+              diagnostic.kind !== 'incorrect' &&
+              diagnostic.kind !== 'stopped'
+            ? 'error'
+            : 'idle',
+      children: (
+        <div className="editor-panel">
+          <header className="editor-toolbar">
+            <label>
+              Example
+              <select
+                aria-label="Code example"
+                value={example}
                 onChange={(e) => {
-                  setInput(e.target.value);
-                  invalidate();
+                  const key = e.target.value as keyof typeof examples;
+                  setExample(key);
+                  changeSource(examples[key].code);
                 }}
-              />
-              <div className="input-actions flex gap-2">
-                <button
-                  className="primary"
-                  onClick={() => run()}
-                  disabled={state.pending}
-                >
-                  ▶ Run & play
-                </button>
-                <button
-                  onClick={() => {
-                    stopWorker();
-                    dispatch({ type: 'complete' });
-                    dispatch({ type: 'pause' });
-                    setDiagnostic({
-                      kind: 'stopped',
-                      message: 'Stopped. Recorded steps remain available.',
-                    });
-                  }}
-                  disabled={!state.pending}
-                >
-                  Stop
-                </button>
-                <button onClick={() => run(true)} disabled={state.pending}>
-                  Check examples
-                </button>
-                <button
-                  aria-label="Random input"
-                  onClick={() => {
-                    setInput(randomValues().join(', '));
-                    invalidate();
-                  }}
-                >
-                  ↻
-                </button>
-              </div>
-              {diagnostic && (
-                <p
-                  className={`diagnostic ${diagnostic.kind === 'success' ? 'success' : diagnostic.kind === 'incorrect' || diagnostic.kind === 'stopped' ? 'notice' : 'error'}`}
-                  role="status"
-                >
-                  <strong>
-                    {diagnostic.kind}
-                    {diagnostic.line ? ` · line ${diagnostic.line}` : ''}
-                  </strong>{' '}
-                  {diagnostic.message}
-                </p>
-              )}
-            </div>
-            <ArrayView frame={shownFrame} speed={state.speed} />
-            <div className="current-explanation">
-              <span className="operation">{shownFrame.operation}</span>
-              <p>{shownFrame.description}</p>
-            </div>
-            <PlaybackControls state={state} dispatch={dispatch} />
-          </section>
+              >
+                {Object.entries(examples).map(([key, value]) => (
+                  <option key={key} value={key}>
+                    {value.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button onClick={() => changeSource(examples[example].code)}>
+              Reset example
+            </button>
+          </header>
+          <Suspense fallback={<p className="empty-hint">Loading editor…</p>}>
+            <CodeEditor
+              source={source}
+              onChange={changeSource}
+              line={shownFrame.source?.line}
+              errorLine={diagnostic?.line}
+            />
+          </Suspense>
+          <details className="syntax-guide" id="syntax-help">
+            <summary>Supported JavaScript & limits</summary>
+            <p>
+              Entry: <code>function sort(arr)</code>. Mutate arr or return a
+              numeric array. Use let/const, named helper functions, recursion,
+              numeric/boolean expressions, if/else, for/while/do loops,
+              break/continue, indexed reads/writes, and array-swap
+              destructuring.
+            </p>
+            <p>
+              Arrays: length, slice, push, pop. Math: floor, min, max. Imports,
+              objects, classes, async, browser APIs, and .sort() are
+              unsupported.
+            </p>
+            <p>
+              Limits: 20KB source · 100,000 operations · 10,000 frames · 64
+              calls · 256 cells per array · 8,192 cumulative allocated cells · 3
+              seconds. Tab indents; Escape then Tab leaves the editor.
+            </p>
+            <p>
+              Supported but incorrect attempts remain playable. Unrelated code
+              that never inspects or modifies the input is rejected. Passing
+              examples does not prove correctness.
+            </p>
+          </details>
         </div>
-      </main>
-      <aside className="inspector-docked">{!inspecting && inspector}</aside>
-      <Drawer
-        title="Execution inspector"
-        open={inspecting}
-        onClose={() => setInspecting(false)}
-      >
-        {inspecting && inspector}
-      </Drawer>
-    </div>
+      ),
+    },
+    {
+      id: 'run',
+      title: 'Run',
+      subtitle: 'Input & execution',
+      icon: '▶',
+      x: 760,
+      y: 0,
+      width: 340,
+      status: running ? 'running' : 'idle',
+      children: (
+        <div className="lab-input">
+          <label htmlFor="lab-values">Input array</label>
+          <textarea
+            id="lab-values"
+            rows={2}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              invalidate();
+            }}
+          />
+          <div className="input-actions flex gap-2">
+            <button
+              className="primary"
+              onClick={() => run()}
+              disabled={state.pending}
+            >
+              ▶ Run & play
+            </button>
+            <button
+              onClick={() => {
+                stopWorker();
+                dispatch({ type: 'complete' });
+                dispatch({ type: 'pause' });
+                setDiagnostic({
+                  kind: 'stopped',
+                  message: 'Stopped. Recorded steps remain available.',
+                });
+              }}
+              disabled={!state.pending}
+            >
+              Stop
+            </button>
+            <button onClick={() => run(true)} disabled={state.pending}>
+              Check examples
+            </button>
+            <button
+              aria-label="Random input"
+              onClick={() => {
+                setInput(randomValues().join(', '));
+                invalidate();
+              }}
+            >
+              ↻
+            </button>
+          </div>
+          {diagnostic && (
+            <p
+              className={`diagnostic ${diagnostic.kind === 'success' ? 'success' : diagnostic.kind === 'incorrect' || diagnostic.kind === 'stopped' ? 'notice' : 'error'}`}
+              role="status"
+            >
+              <strong>
+                {diagnostic.kind}
+                {diagnostic.line ? ` · line ${diagnostic.line}` : ''}
+              </strong>{' '}
+              {diagnostic.message}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'visualization',
+      title: 'Visualization',
+      subtitle: 'Your algorithm, in motion',
+      icon: '▥',
+      x: 1220,
+      y: 0,
+      width: 640,
+      status: state.playing ? 'running' : 'idle',
+      children: (
+        <div className="visualization-panel lab-visualization">
+          <ArrayView frame={shownFrame} speed={state.speed} />
+          <div className="current-explanation">
+            <span className="operation">{shownFrame.operation}</span>
+            <p>{shownFrame.description}</p>
+          </div>
+          <PlaybackControls state={state} dispatch={dispatch} />
+        </div>
+      ),
+    },
+    {
+      id: 'inspector',
+      title: 'Execution inspector',
+      subtitle: 'Understand the process',
+      icon: '◎',
+      x: 1980,
+      y: 0,
+      width: 340,
+      children: inspector,
+    },
+  ];
+  const edges: FlowEdge[] = [
+    { id: 'e-r', from: 'editor', to: 'run' },
+    {
+      id: 'r-v',
+      from: 'run',
+      to: 'visualization',
+      active: running || state.playing,
+    },
+    {
+      id: 'v-i',
+      from: 'visualization',
+      to: 'inspector',
+      active: state.playing,
+    },
+  ];
+  return (
+    <Canvas
+      label="Code Lab workspace map"
+      nodes={nodes}
+      edges={edges}
+      initialFocus="editor"
+    />
   );
 }
