@@ -1,6 +1,17 @@
-# Instralize
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+    <img src="docs/logo-light.svg" alt="Instralize" height="48">
+  </picture>
+</p>
 
-An interactive algorithm studio built with React, TypeScript, and Vite. Explore built-in algorithms or write a sorting function and follow its execution in Code Lab.
+<p align="center">
+  An interactive algorithm studio built with React, TypeScript, and Vite.
+</p>
+
+![Instralize workspace: algorithm, input, visualization, and execution map nodes on an infinite canvas](docs/preview.png)
+
+Explore built-in algorithms or write a sorting function and follow its execution in Code Lab.
 
 ## Run locally
 
@@ -65,7 +76,8 @@ Unrelated code that never inspects or modifies the input is rejected. Supported 
 - `src/features/code-lab/`: editor, interpreter, worker protocol, and examples.
 - `src/shared/`: shared interface primitives.
 - `e2e/`: production browser checks.
+- `docs/`: README images and logo variants.
 
 Immutable frames contain resulting state, so backward seeking does not replay mutations. Each workspace owns its playback state. Algorithm complexity labels exclude trace-recording overhead. Tailwind provides theme tokens and layout utilities; component CSS handles diagram geometry. Motion handles element transitions, and IBM Plex fonts are bundled locally.
 
-The existing `AGENTS.md` is preserved as originally requested; this README describes the updated paths and test commands. Favicon credit: Flaticon.
+See `AGENTS.md` for contributor guidelines. Favicon credit: Flaticon.

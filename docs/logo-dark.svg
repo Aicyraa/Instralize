@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 32" fill="none">
+  <title>Instralize</title>
+  <rect width="32" height="32" rx="7" fill="#18191c"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="6.5" stroke="#ffffff" stroke-opacity="0.08"/>
+  <rect x="8" y="8.5" width="7" height="4" rx="1.2" fill="#5b5e65"/>
+  <rect x="8" y="14" width="11.5" height="4" rx="1.2" fill="#9a9ca3"/>
+  <rect x="8" y="19.5" width="16" height="4" rx="1.2" fill="#4fb47e"/>
+  <text x="42" y="21.5" fill="#e6e7ea" font-family="IBM Plex Sans, system-ui, sans-serif" font-size="17" font-weight="600">Instralize</text>
+</svg>
